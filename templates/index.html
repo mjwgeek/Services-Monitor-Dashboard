@@ -183,11 +183,11 @@ let lastTab = localStorage.getItem("lastTab") || "LOCAL";
 function fetchData() {
   showSpinner();
   fetch("/api/services")
-    .then(res => res.json())
-    .then(result => {
-      const { data, timestamp } = result;
-      updateTabs(data);
-      updateTimestamp(timestamp);
+  .then(res => res.json())
+  .then(result => {
+    const { data, timestamp } = result;
+    updateTabs(data);
+    updateTimestamp(timestamp);
       hideSpinner();
       scheduleRefresh();
     })
@@ -327,8 +327,14 @@ function updateSummary(host) {
 }
 
 function updateTimestamp(ts = null) {
-  const label = ts ? `Last updated: ${ts}` : "Last updated: --:--:--";
-  document.getElementById("lastUpdated").innerText = label;
+  if (!ts) {
+    document.getElementById("lastUpdated").innerText = "Last updated: --:--:--";
+    return;
+  }
+
+  const date = new Date(ts * 1000); // Convert UNIX timestamp (in seconds) to milliseconds
+  const formatted = date.toLocaleString(); // You can customize this if needed
+  document.getElementById("lastUpdated").innerText = `Last updated: ${formatted}`;
 }
 
 function manualRefresh() {
