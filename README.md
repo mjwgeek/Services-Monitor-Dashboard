@@ -48,4 +48,4 @@ chmod +x install.sh
 
 Here’s what the Services Monitor Dashboard looks like:
 
-![Dashboard Preview](assets/dashboard.jpg)
+![Dashboard Preview](assets/dash.jpg)
