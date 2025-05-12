@@ -33,7 +33,7 @@ A self-hosted web dashboard to monitor and control `systemd` services across mul
 ```bash
 curl -s https://raw.githubusercontent.com/mjwgeek/Service-Monitor-Dashboard/main/install.sh | bash
 ```
-### Option 2: Clone and run manually:
+### Option 2: Clone and run manually
 
 ```bash
 git clone https://github.com/mjwgeek/Services-Monitor-Dashboard.git
