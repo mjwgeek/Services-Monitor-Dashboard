@@ -43,3 +43,9 @@ chmod +x install.sh
 ```
 
 👉 Visit your dashboard at `http://YourIpAddress:8484`
+
+## 📸 Preview
+
+Here’s what the Multi-Host Service Dashboard looks like:
+
+![Dashboard Preview](assets/dashboard.jpg)
