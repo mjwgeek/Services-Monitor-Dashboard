@@ -1,4 +1,4 @@
-# 🖥️ Multi-Host Service Monitor Dashboard
+# 🖥️ Services Monitor Dashboard
 
 A self-hosted web dashboard to monitor and control `systemd` services across multiple Linux hosts using SSH.
 
@@ -46,6 +46,6 @@ chmod +x install.sh
 
 ## 📸 Preview
 
-Here’s what the Multi-Host Service Dashboard looks like:
+Here’s what the Services Monitor Dashboard looks like:
 
 ![Dashboard Preview](assets/dashboard.jpg)
