@@ -4,8 +4,8 @@ After=network.target
 
 [Service]
 User=root
-WorkingDirectory=/home/mike/servicemonitor
-ExecStart=/home/mike/servicemonitor/start_dashboard.sh
+WorkingDirectory=/home/servicemonitor
+ExecStart=/home/servicemonitor/start_dashboard.sh
 Restart=on-failure
 
 [Install]
