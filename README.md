@@ -31,10 +31,11 @@ A self-hosted web dashboard to monitor and control `systemd` services across mul
 ### Option 1: Install with Script
 
 ```bash
-curl -s https://raw.githubusercontent.com/yourusername/servicemonitor/main/install.sh | bash
+curl -s https://raw.githubusercontent.com/mjwgeek/servicemonitor/main/install.sh | bash
+```
+### Option 2: Clone and run manually:
 
-Or clone and run manually:
-git clone https://github.com/yourusername/servicemonitor.git
+git clone https://github.com/mjwgeek/servicemonitor.git
 cd servicemonitor
 chmod +x install.sh
 ./install.sh
