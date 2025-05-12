@@ -77,6 +77,13 @@
       color: #bbb;
     }
 
+    #loadingMessage {
+      text-align: center;
+      padding: 20px;
+      font-size: 18px;
+      color: #ddd;
+    }
+
     #toast {
       position: fixed;
       bottom: 20px;
@@ -128,8 +135,6 @@
     <span id="lastUpdated">Last updated: --:--:--</span>
     <button onclick="manualRefresh()">Refresh</button>
     <select id="refreshInterval">
-      <option value="15000">15s</option>
-      <option value="30000">30s</option>
       <option value="60000" selected>60s</option>
       <option value="120000">120s</option>
     </select>
@@ -145,6 +150,7 @@
 </div>
 
 <input type="text" id="searchInput" placeholder="Filter services...">
+<div id="loadingMessage">⏳ Loading service data, please wait...</div>
 <div class="tabs" id="tabButtons"></div>
 <div id="tabContainer"></div>
 <div id="toast">Status updated</div>
@@ -179,19 +185,22 @@
 </div>
 <script>
 let lastTab = localStorage.getItem("lastTab") || "LOCAL";
+let refreshTimer = null;
 
 function fetchData() {
   showSpinner();
   fetch("/api/services")
-  .then(res => res.json())
-  .then(result => {
-    const { data, timestamp } = result;
-    updateTabs(data);
-    updateTimestamp(timestamp);
+    .then(res => res.json())
+    .then(result => {
+      const { data, timestamp } = result;
+      document.getElementById("loadingMessage").style.display = "none";
+      updateTabs(data);
+      updateTimestamp(timestamp);
       hideSpinner();
       scheduleRefresh();
     })
     .catch(err => {
+      document.getElementById("loadingMessage").innerText = "⚠ Failed to load services. Please try refreshing.";
       hideSpinner();
       console.error("Fetch failed", err);
     });
@@ -377,10 +386,23 @@ function hideSpinner() {
   document.getElementById("spinnerOverlay").style.display = "none";
 }
 
-function scheduleRefresh() {
+function scheduleRefresh(reset = false) {
   const auto = document.getElementById("autoRefreshToggle").checked;
-  const interval = parseInt(document.getElementById("refreshInterval").value || "60000");
-  if (auto) setTimeout(fetchData, interval);
+  const interval = Math.max(60000, Math.min(300000, parseInt(document.getElementById("refreshInterval").value || "60000")));
+
+  if (refreshTimer) clearTimeout(refreshTimer);
+
+  if (auto) {
+    refreshTimer = setTimeout(() => {
+      fetch("/api/prefetch", { method: "POST" })
+        .then(() => fetchData())  // refresh page data after cache refresh
+        .catch(() => fetchData()); // fallback if prefetch fails
+    }, interval);
+  }
+
+  if (reset) {
+    showToast(`🔁 Auto-refresh set to ${interval / 60000} minute(s)`);
+  }
 }
 
 function waitForTab(name, retries = 10) {
