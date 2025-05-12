@@ -9,8 +9,8 @@ from pathlib import Path
 app = Flask(__name__)
 app.secret_key = "supersecret"
 
-CACHE_FILE = "/home/mike/servicemonitor/cache.json"
-NODES_FILE = "/home/mike/servicemonitor/nodes.json"
+CACHE_FILE = "/home/servicemonitor/cache.json"
+NODES_FILE = "/home/servicemonitor/nodes.json"
 
 def load_nodes():
     with open(NODES_FILE) as f:
@@ -110,7 +110,7 @@ def action():
 @app.route('/force-refresh', methods=["POST"])
 def force_refresh():
     try:
-        subprocess.run(["/usr/bin/python3", "/home/mike/servicemonitor/prefetch_services.py"], check=True)
+        subprocess.run(["/usr/bin/python3", "/home/servicemonitor/prefetch_services.py"], check=True)
         return jsonify({"success": True, "message": "Cache refreshed"})
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
@@ -162,7 +162,7 @@ def add_node():
     save_nodes(nodes)
 
     def trigger_refresh():
-        subprocess.run(["/usr/bin/python3", "/home/mike/servicemonitor/prefetch_services.py"])
+        subprocess.run(["/usr/bin/python3", "/home/servicemonitor/prefetch_services.py"])
 
     threading.Thread(target=trigger_refresh).start()
 
