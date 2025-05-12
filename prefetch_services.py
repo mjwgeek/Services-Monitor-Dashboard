@@ -3,7 +3,7 @@ import json
 import os
 from app import load_nodes, get_local_services, get_remote_services
 
-CACHE_FILE = "/home/mike/servicemonitor/cache.json"
+CACHE_FILE = "/home/servicemonitor/cache.json"
 
 def update_cache():
     results = []
