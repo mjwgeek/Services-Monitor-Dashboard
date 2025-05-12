@@ -42,4 +42,4 @@ chmod +x install.sh
 ./install.sh
 ```
 
-👉 Visit your dashboard at ""http://YourIpAddress:8484""
+👉 Visit your dashboard at `http://YourIpAddress:8484`
