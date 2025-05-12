@@ -1,0 +1,12 @@
+[Unit]
+Description=Service Monitor Dashboard
+After=network.target
+
+[Service]
+User=root
+WorkingDirectory=/home/mike/servicemonitor
+ExecStart=/home/mike/servicemonitor/start_dashboard.sh
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

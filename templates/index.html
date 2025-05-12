@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Service Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { font-family: sans-serif; background: #1e1e1e; color: #eee; padding: 20px; }
+    .header, .header-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .tabs {
+      overflow-x: auto;
+      white-space: nowrap;
+      background-color: #111;
+      margin-bottom: 10px;
+    }
+    .tabs button {
+      background-color: inherit;
+      border: none;
+      cursor: pointer;
+      padding: 10px 20px;
+      color: #ccc;
+      font-size: 16px;
+    }
+    .tabs button.active { background-color: #444; color: white; }
+    .tabcontent { display: none; }
+    .table-wrapper { overflow-x: auto; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      min-width: 700px;
+    }
+    th, td {
+      padding: 4px 6px;
+      border-bottom: 1px solid #444;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      text-align: left;
+    }
+    tr:hover { background: #2a2a2a; }
+    tr.failed { background: #440000; }
+
+    .status-active { color: #0f0; font-weight: bold; }
+    .status-failed { color: #f00; font-weight: bold; }
+    .status-inactive { color: #ff0; font-weight: bold; }
+
+    input, select, button {
+      background: #222;
+      color: #eee;
+      border: 1px solid #555;
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-size: 14px;
+    }
+
+    .button { font-size: 12px; margin-left: 2px; }
+
+    .form-group { margin-bottom: 10px; }
+    label { display: block; margin-bottom: 4px; font-size: 14px; }
+
+    #searchInput {
+      width: 100%;
+      margin: 10px 0;
+    }
+
+    .summary {
+      font-size: 14px;
+      margin: 6px 0;
+      color: #bbb;
+    }
+
+    #toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: #333;
+      color: #fff;
+      padding: 12px 20px;
+      border-radius: 5px;
+      box-shadow: 0 0 10px #000;
+      z-index: 9999;
+      display: none;
+    }
+
+    #spinnerOverlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.6);
+      z-index: 9998;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .spinner {
+      border: 6px solid #444;
+      border-top: 6px solid #0f0;
+      border-radius: 50%;
+      width: 48px;
+      height: 48px;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    @media (max-width: 600px) {
+      th, td { font-size: 13px; padding: 4px; }
+      .button { font-size: 10px; padding: 3px 5px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Multi-Host Service Dashboard</h1>
+  <div class="header-controls">
+    <span id="lastUpdated">Last updated: --:--:--</span>
+    <button onclick="manualRefresh()">Refresh</button>
+    <select id="refreshInterval">
+      <option value="15000">15s</option>
+      <option value="30000">30s</option>
+      <option value="60000" selected>60s</option>
+      <option value="120000">120s</option>
+    </select>
+    <label><input type="checkbox" id="autoRefreshToggle" checked> Auto</label>
+    <select id="statusFilter" onchange="applyFilters()">
+      <option value="all">All</option>
+      <option value="active">Active</option>
+      <option value="inactive">Inactive</option>
+      <option value="failed">Failed</option>
+    </select>
+    <button onclick="forceRefresh()">🔁 Force Refresh Cache</button>
+  </div>
+</div>
+
+<input type="text" id="searchInput" placeholder="Filter services...">
+<div class="tabs" id="tabButtons"></div>
+<div id="tabContainer"></div>
+<div id="toast">Status updated</div>
+<div id="spinnerOverlay"><div class="spinner"></div></div>
+
+<!-- + New Machine tab content -->
+<div class="tabcontent" id="Nodes">
+  <h2>Add Machine</h2>
+  <form id="addMachineForm" onsubmit="return submitMachineForm();">
+    <div class="form-group">
+      <label for="name">Name:</label>
+      <input required type="text" name="name" id="name">
+    </div>
+    <div class="form-group">
+      <label for="host">IP Address:</label>
+      <input required type="text" name="host" id="host">
+    </div>
+    <div class="form-group">
+      <label for="port">Port:</label>
+      <input required type="number" name="port" id="port" value="22">
+    </div>
+    <div class="form-group">
+      <label for="user">Username:</label>
+      <input required type="text" name="user" id="user" value="root">
+    </div>
+    <div class="form-group">
+      <label for="password">Password (optional - used for key setup):</label>
+      <input type="password" name="password" id="password">
+    </div>
+    <button type="submit">Add Machine</button>
+  </form>
+</div>
+<script>
+let lastTab = localStorage.getItem("lastTab") || "LOCAL";
+
+function fetchData() {
+  showSpinner();
+  fetch("/api/services")
+    .then(res => res.json())
+    .then(result => {
+      const { data, timestamp } = result;
+      updateTabs(data);
+      updateTimestamp(timestamp);
+      hideSpinner();
+      scheduleRefresh();
+    })
+    .catch(err => {
+      hideSpinner();
+      console.error("Fetch failed", err);
+    });
+}
+
+function updateTabs(results) {
+  const tabButtons = document.getElementById("tabButtons");
+  const tabContainer = document.getElementById("tabContainer");
+  tabButtons.innerHTML = '';
+  tabContainer.innerHTML = '';
+
+  results.forEach((node, index) => {
+    const id = node.node;
+    const btn = document.createElement("button");
+    btn.textContent = node.node;
+    btn.className = "tablinks";
+    if (id === lastTab || (!lastTab && index === 0)) btn.classList.add("active");
+    btn.onclick = () => switchTab(id);
+    tabButtons.appendChild(btn);
+
+    const div = document.createElement("div");
+    div.id = id;
+    div.className = "tabcontent";
+    div.style.display = (id === lastTab) ? "block" : "none";
+
+    const summary = document.createElement("div");
+    summary.className = "summary";
+    summary.id = `summary-${id}`;
+    div.appendChild(summary);
+
+    const wrapper = document.createElement("div");
+    wrapper.className = "table-wrapper";
+
+    const table = document.createElement("table");
+    table.dataset.host = id;
+    const thead = document.createElement("thead");
+    thead.innerHTML = `
+      <tr>
+        <th onclick="sortTable(this)">Name</th>
+        <th onclick="sortTable(this)">Load</th>
+        <th onclick="sortTable(this)">Active</th>
+        <th onclick="sortTable(this)">Sub</th>
+        <th>Actions</th>
+      </tr>`;
+    table.appendChild(thead);
+
+    const tbody = document.createElement("tbody");
+    node.services.forEach(service => {
+      const tr = document.createElement("tr");
+      if (service.active === 'failed') tr.classList.add("failed");
+      tr.innerHTML = `
+        <td>${service.name}</td>
+        <td>${service.load}</td>
+        <td class="status-${service.active}">${service.active}</td>
+        <td>${service.sub}</td>
+        <td>
+          <form method="post" action="/action" style="display:inline;">
+            <input type="hidden" name="host" value="${id}">
+            <input type="hidden" name="service" value="${service.name}">
+            <button class="button" name="action" value="restart">Restart</button>
+            <button class="button" name="action" value="stop">Stop</button>
+            <button class="button" name="action" value="start">Start</button>
+          </form>
+        </td>`;
+      tbody.appendChild(tr);
+    });
+
+    table.appendChild(tbody);
+    wrapper.appendChild(table);
+    div.appendChild(wrapper);
+    tabContainer.appendChild(div);
+    updateSummary(id);
+  });
+
+  // Add the + New Machine tab manually
+  const nodeBtn = document.createElement("button");
+  nodeBtn.textContent = "+ New Machine";
+  nodeBtn.className = "tablinks";
+  nodeBtn.onclick = () => switchTab("Nodes");
+  tabButtons.appendChild(nodeBtn);
+  if (lastTab === "Nodes") nodeBtn.classList.add("active");
+  document.getElementById("Nodes").style.display = lastTab === "Nodes" ? "block" : "none";
+
+  applyFilters();
+}
+
+function switchTab(tabId) {
+  document.querySelectorAll(".tabcontent").forEach(div => div.style.display = "none");
+  document.querySelectorAll(".tablinks").forEach(btn => btn.classList.remove("active"));
+  const el = document.getElementById(tabId);
+  if (el) el.style.display = "block";
+  const btn = Array.from(document.getElementsByClassName("tablinks")).find(b => b.textContent.trim() === tabId || b.textContent.includes(tabId));
+  if (btn) btn.classList.add("active");
+  lastTab = tabId;
+  localStorage.setItem("lastTab", tabId);
+  updateSummary(tabId);
+  applyFilters();
+}
+
+function applyFilters() {
+  const filter = document.getElementById("statusFilter")?.value || "all";
+  const search = document.getElementById("searchInput").value.toLowerCase();
+  const tab = document.getElementById(lastTab);
+  if (!tab) return;
+  tab.querySelectorAll("tbody tr").forEach(row => {
+    const status = row.cells[2].textContent.trim().toLowerCase();
+    const text = row.innerText.toLowerCase();
+    row.style.display = (filter === 'all' || filter === status) && text.includes(search) ? '' : 'none';
+  });
+}
+
+function sortTable(header) {
+  const table = header.closest("table");
+  const index = Array.from(header.parentNode.children).indexOf(header);
+  const rows = Array.from(table.tBodies[0].rows);
+  const asc = header.classList.toggle("asc");
+  rows.sort((a, b) => a.cells[index].textContent.localeCompare(b.cells[index].textContent) * (asc ? 1 : -1));
+  rows.forEach(r => table.tBodies[0].appendChild(r));
+}
+
+function updateSummary(host) {
+  const tab = document.getElementById(host);
+  if (!tab) return;
+  let active = 0, failed = 0, inactive = 0;
+  tab.querySelectorAll("tbody tr").forEach(r => {
+    const s = r.cells[2].textContent.trim().toLowerCase();
+    if (s === 'active') active++;
+    else if (s === 'failed') failed++;
+    else inactive++;
+  });
+  document.getElementById(`summary-${host}`).innerText =
+    `✓ Running: ${active}   ⚠ Inactive: ${inactive}   ✖ Failed: ${failed}`;
+}
+
+function updateTimestamp(ts = null) {
+  const label = ts ? `Last updated: ${ts}` : "Last updated: --:--:--";
+  document.getElementById("lastUpdated").innerText = label;
+}
+
+function manualRefresh() {
+  fetchData();
+}
+
+function forceRefresh() {
+  showToast("Refreshing cache...");
+  fetch("/force-refresh", { method: "POST" })
+    .then(res => res.json())
+    .then(json => {
+      if (json.success) {
+        showToast("✅ Cache refreshed");
+        fetchData();
+      } else {
+        showToast("⚠ " + json.message);
+      }
+    })
+    .catch(err => {
+      showToast("⚠ Refresh failed: " + err);
+    });
+}
+
+function showToast(msg) {
+  const toast = document.getElementById("toast");
+  toast.textContent = msg;
+  toast.style.display = "block";
+  toast.style.opacity = 1;
+  setTimeout(() => {
+    toast.style.opacity = 0;
+    setTimeout(() => toast.style.display = "none", 1000);
+  }, 4000);
+}
+
+function showSpinner() {
+  document.getElementById("spinnerOverlay").style.display = "flex";
+}
+
+function hideSpinner() {
+  document.getElementById("spinnerOverlay").style.display = "none";
+}
+
+function scheduleRefresh() {
+  const auto = document.getElementById("autoRefreshToggle").checked;
+  const interval = parseInt(document.getElementById("refreshInterval").value || "60000");
+  if (auto) setTimeout(fetchData, interval);
+}
+
+function waitForTab(name, retries = 10) {
+  const tabExists = Array.from(document.querySelectorAll(".tablinks"))
+    .some(btn => btn.textContent.trim() === name);
+  if (tabExists) {
+    switchTab(name);
+  } else if (retries > 0) {
+    setTimeout(() => waitForTab(name, retries - 1), 300);
+  } else {
+    showToast("⚠ Tab '" + name + "' did not appear in time.");
+  }
+}
+
+function submitMachineForm() {
+  const form = document.getElementById("addMachineForm");
+  const data = {
+    name: form.name.value.trim(),
+    host: form.host.value.trim(),
+    port: form.port.value.trim(),
+    user: form.user.value.trim(),
+    password: form.password.value
+  };
+
+  const existingTabs = Array.from(document.querySelectorAll(".tablinks"))
+    .map(btn => btn.textContent.trim());
+  if (existingTabs.includes(data.name)) {
+    showToast("⚠ A machine named '" + data.name + "' already exists.");
+    return false;
+  }
+
+  showSpinner();
+
+  fetch("/add_node", {
+    method: "POST",
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  })
+  .then(res => res.json())
+  .then(result => {
+    hideSpinner();
+    if (result.success) {
+      showToast("✅ Machine added!");
+      form.reset();
+      fetchData();
+      waitForTab(data.name);
+    } else {
+      showToast("❌ Error: " + result.message);
+    }
+  })
+  .catch(err => {
+    hideSpinner();
+    showToast("❌ Error: " + err);
+  });
+
+  return false;
+}
+
+fetchData();
+</script>
+</body>
+</html>

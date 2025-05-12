@@ -1,0 +1,9 @@
+[Unit]
+Description=Prefetch Remote Service Info for Dashboard
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 /home/mike/servicemonitor/prefetch_services.py
+WorkingDirectory=/home/mike/servicemonitor
+User=mike
+Restart=on-failure

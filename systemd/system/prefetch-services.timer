@@ -1,0 +1,11 @@
+[Unit]
+Description=Run service info prefetch every 5 minutes
+
+[Timer]
+OnBootSec=30
+OnUnitActiveSec=300
+Persistent=true
+Unit=prefetch-services.service
+
+[Install]
+WantedBy=timers.target
