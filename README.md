@@ -26,22 +26,6 @@ A self-hosted web dashboard to monitor and control `systemd` services across mul
 
 ---
 
-## 📁 Directory Structure
-
-servicemonitor/
-├── app.py # Main Flask dashboard app
-├── prefetch_services.py # Periodically pulls remote service data
-├── setup_keys.py # Handles SSH key generation and copying
-├── start_dashboard.sh # Optional manual launcher
-├── nodes.json # Remote host configuration
-├── templates/
-│ └── index.html # Frontend dashboard
-└── systemd/
-└── system/
-├── servicemonitor.service
-├── prefetch-services.service
-└── prefetch-services.timer
-
 ## ⚙️ Installation
 
 ### Option 1: Install with Script
