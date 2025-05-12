@@ -11,6 +11,3 @@ A self-hosted web dashboard for monitoring and controlling `systemd` services ac
 - ⚙️ Auto-refresh + service status filtering
 - ➕ Add new machines directly from the web UI (with password/key-based SSH setup)
 - ✅ Supports `systemd` timers to prefetch cache in the background
-
-## 📁 File Structure
-
