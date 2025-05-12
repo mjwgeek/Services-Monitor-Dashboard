@@ -35,7 +35,9 @@ curl -s https://raw.githubusercontent.com/mjwgeek/servicemonitor/main/install.sh
 ```
 ### Option 2: Clone and run manually:
 
+```bash
 git clone https://github.com/mjwgeek/servicemonitor.git
 cd servicemonitor
 chmod +x install.sh
 ./install.sh
+```
