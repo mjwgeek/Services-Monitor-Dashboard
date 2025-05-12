@@ -40,21 +40,13 @@ else
   echo "[!] nodes.json already exists. Skipping."
 fi
 
-# 6. Remove obsolete prefetch-timer.service if it exists
-if [ -f "$SYSTEMD_DIR/prefetch-timer.service" ]; then
-  echo "[*] Removing legacy prefetch-timer.service..."
-  sudo systemctl stop prefetch-timer.service || true
-  sudo systemctl disable prefetch-timer.service || true
-  sudo rm -f "$SYSTEMD_DIR/prefetch-timer.service"
-fi
-
-# 7. Install systemd service files
+# 6. Install systemd service files
 echo "[*] Installing systemd services..."
 sudo cp systemd/system/*.service "$SYSTEMD_DIR/"
 sudo systemctl daemon-reexec
 sudo systemctl daemon-reload
 
-# 8. Enable and start main dashboard
+# 7. Enable and start main dashboard
 echo "[*] Enabling and starting servicemonitor.service..."
 sudo systemctl enable servicemonitor.service
 sudo systemctl restart servicemonitor.service
