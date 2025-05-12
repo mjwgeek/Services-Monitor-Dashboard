@@ -41,3 +41,5 @@ cd servicemonitor
 chmod +x install.sh
 ./install.sh
 ```
+
+👉 Visit your dashboard at http://<your-ip>:8484"
