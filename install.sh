@@ -4,7 +4,7 @@ set -e
 
 # CONFIGURATION
 INSTALL_DIR="/home/servicemonitor"
-REPO_URL="https://github.com/yourusername/servicemonitor.git"
+REPO_URL="https://github.com/mjwgeek/servicemonitor.git"
 SYSTEMD_DIR="/etc/systemd/system"
 
 echo "🛠  Starting Service Monitor installation..."
@@ -43,15 +43,12 @@ fi
 # 6. Install systemd service files
 echo "[*] Installing systemd services..."
 sudo cp systemd/system/*.service "$SYSTEMD_DIR/"
-sudo cp systemd/system/*.timer "$SYSTEMD_DIR/"
 sudo systemctl daemon-reexec
 
 # 7. Enable and start services
 echo "[*] Enabling and starting services..."
 sudo systemctl enable servicemonitor.service
 sudo systemctl start servicemonitor.service
-sudo systemctl enable prefetch-services.timer
-sudo systemctl start prefetch-services.timer
 
 # 8. Finish
 echo "✅ Installation complete."
