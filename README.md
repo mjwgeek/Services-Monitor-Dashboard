@@ -31,7 +31,7 @@ A self-hosted web dashboard to monitor and control `systemd` services across mul
 ### Option 1: Install with Script
 
 ```bash
-curl -s https://raw.githubusercontent.com/mjwgeek/Service-Monitor-Dashboard/main/install.sh | bash
+curl -s https://raw.githubusercontent.com/mjwgeek/Services-Monitor-Dashboard/main/install.sh | bash
 ```
 ### Option 2: Clone and run manually
 
