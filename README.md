@@ -1,13 +1,44 @@
-# Services-Monitor-Dashboard
-Services Monitor Dashboard
-# Multi-Host Linux Service Monitor Dashboard
+# 🖥️ Multi-Host Service Monitor Dashboard
 
-A self-hosted web dashboard for monitoring and controlling `systemd` services across multiple Linux machines using SSH.
+A self-hosted web dashboard to monitor and control `systemd` services across multiple Linux hosts using SSH.
 
-## 🚀 Features
+---
 
-- 🔍 View active/inactive/failed services across multiple hosts
-- 🔁 Start/Stop/Restart services with buttons
-- ⚙️ Auto-refresh + service status filtering
-- ➕ Add new machines directly from the web UI (with password/key-based SSH setup)
-- ✅ Supports `systemd` timers to prefetch cache in the background
+## ✨ Features
+
+- 🔍 View, filter, and sort `systemctl` services
+- 🟢 Restart / Stop / Start any service with one click
+- 🔁 Auto-refresh with update timestamp
+- ➕ Add new machines directly from the web interface
+- ✅ SSH key-based login generation from the browser
+- 📱 Mobile-friendly UI
+
+---
+
+## 🧠 How It Works
+
+- The dashboard **always includes a built-in `LOCAL` tab** for the host it's running on.
+- External systems are defined in `nodes.json`.
+- If `nodes.json` is empty or missing, the dashboard still works with `LOCAL` only.
+- The **`+ New Machine` tab** allows adding other systems by IP, username, port, and password.
+    - It will generate an SSH key and copy it using the provided password (if needed).
+    - Your `nodes.json` file is updated automatically.
+
+---
+
+
+
+## ⚙️ Installation
+
+### Option 1: Install with Script
+
+```bash
+curl -s https://raw.githubusercontent.com/yourusername/servicemonitor/main/install.sh | bash
+
+---
+### Option 2: Clone and run Manually
+Or clone and run manually:
+git clone https://github.com/yourusername/servicemonitor.git
+cd servicemonitor
+chmod +x install.sh
+./install.sh
