@@ -16,7 +16,7 @@ CACHE_FILE = os.path.join(BASE_DIR, "cache.json")
 NODES_FILE = os.path.join(BASE_DIR, "nodes.json")
 PREFETCH_SCRIPT = os.path.join(BASE_DIR, "prefetch_services.py")
 # Add VENV_BIN - this should be defined in your environment or you can hardcode it, but hardcoding is not recommended.
-VENV_BIN = "/home/servicemonitor/venv/bin/python3" # Or get it from an environment variable if you set it in systemd
+VENV_BIN = os.path.join(os.environ.get("VIRTUAL_ENV", "/home/servicemonitor/venv"), "bin", "python3")
 
 # Node management
 def load_nodes():
