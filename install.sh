@@ -40,9 +40,13 @@ else
 fi
 cd "$INSTALL_DIR"
 
-# Step 4. Create virtual environment
-echo "[4] Creating virtual environment..."
-python3 -m venv "$VENV_DIR"
+# Step 4. Create virtual environment if missing
+if [ ! -d "$VENV_DIR" ]; then
+    echo "[4] Creating virtual environment..."
+    python3 -m venv "$VENV_DIR"
+else
+    echo "[4] Virtual environment already exists. Skipping."
+fi
 source "$VENV_DIR/bin/activate"
 
 # Step 5. Install Python dependencies into virtual environment
@@ -74,10 +78,15 @@ else
     exit 1
 fi
 
-# Step 8. Enable and start service
-echo "[8] Enabling and starting servicemonitor.service..."
-sudo systemctl enable servicemonitor.service
-sudo systemctl restart servicemonitor.service
+# Step 8. Enable or restart service
+if systemctl is-active --quiet servicemonitor.service; then
+    echo "[8] Restarting servicemonitor.service..."
+    sudo systemctl restart servicemonitor.service
+else
+    echo "[8] Enabling and starting servicemonitor.service..."
+    sudo systemctl enable servicemonitor.service
+    sudo systemctl start servicemonitor.service
+fi
 
 # Step 9. Preload cache to verify setup
 echo "[9] Running prefetch_services.py once to verify..."
