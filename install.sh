@@ -52,7 +52,7 @@ cd "$INSTALL_DIR"
 echo "[*] Creating virtual environment..."
 python3 -m venv "$VENV_DIR" # create
 VENV_BIN="$VENV_DIR/bin" # Define the virtual environment's bin directory
-source "$VENV_DIR/bin/activate" # activate
+source "$VENV_BIN/activate" # activate
 
 # 4. Install Python dependencies into the virtual environment
 echo "[*] Installing Python packages (flask, paramiko) into virtual environment..."
@@ -65,8 +65,9 @@ sudo chown "$USER":"$USER" "$APP_DIR"
 
 # 6. Copy application files
 echo "[*] Copying application files to $APP_DIR"
-cp -r * "$APP_DIR" # Copy all files from the repo to the app dir
-#Exclude venv
+# Copy all files from the repo to the app dir, excluding the venv and the script itself
+find . -mindepth 1 -maxdepth 1 ! -name "venv" ! -name "install.sh" -exec cp -r {} "$APP_DIR" \;
+#Remove venv from app dir.  The find command already excludes it, but this is here for safety.
 rm -rf "$APP_DIR/venv"
 
 # 7. Ensure nodes.json exists (empty list)
@@ -81,7 +82,7 @@ fi
 # 8. Install systemd service files
 echo "[*] Installing systemd services..."
 if [ -f "systemd/system/servicemonitor.service" ]; then
-    sudo cp /home/servicemonitor/systemd/system/servicemonitor.service "$SYSTEMD_DIR/"
+    sudo cp /home/system/systemd/system/servicemonitor.service "$SYSTEMD_DIR/"
     # Modify the service file to use the virtual environment's python and the correct application path
     sudo sed -i "s|ExecStart=/usr/bin/python3|ExecStart=$VENV_BIN/python3|" "$SYSTEMD_DIR/servicemonitor.service"
     sudo sed -i "s|/home/servicemonitor|${APP_DIR}|" "$SYSTEMD_DIR/servicemonitor.service" #correct path in systemd
