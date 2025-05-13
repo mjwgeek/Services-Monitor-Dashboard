@@ -91,9 +91,14 @@ sudo systemctl restart servicemonitor.service
 
 # 8. Modify prefetch_services.py to use venv python.
 echo "[*] Modify prefetch_services.py to use virtual environment python"
+# Use the virtual environment's python explicitly
 sed -i "1s|^#!/usr/bin/python3|#!/$VENV_BIN/python3|" "$APP_DIR/prefetch_services.py"
 
 
-# 9. Done
+# 9. Test run prefetch_services.py with the virtual environment.
+echo "[*] Test running prefetch_services.py"
+"$VENV_BIN/python3" "$APP_DIR/prefetch_services.py"
+
+# 10. Done
 echo "✅ Installation complete."
 echo "👉 Visit your dashboard at http://<your_server_ip>:8484"
