@@ -97,7 +97,8 @@ sed -i "1s|^#!/usr/bin/python3|#!/$VENV_BIN/python3|" "$APP_DIR/prefetch_service
 
 # 9. Test run prefetch_services.py with the virtual environment.
 echo "[*] Test running prefetch_services.py"
-"$VENV_BIN/python3" "$APP_DIR/prefetch_services.py"
+# Try explicitly setting the PYTHONPATH
+PYTHONPATH="$VENV_DIR/lib/python3.11/site-packages" "$VENV_BIN/python3" "$APP_DIR/prefetch_services.py"
 
 # 10. Done
 echo "✅ Installation complete."
