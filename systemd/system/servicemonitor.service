@@ -4,8 +4,8 @@ After=network.target
 
 [Service]
 User=root
-WorkingDirectory=/home/mike/servicemonitor
-ExecStart=/usr/bin/python3 /home/mike/servicemonitor/app.py
+WorkingDirectory=/home/servicemonitor
+ExecStart=/usr/bin/python3 /home/servicemonitor/app.py
 Restart=on-failure
 
 [Install]
