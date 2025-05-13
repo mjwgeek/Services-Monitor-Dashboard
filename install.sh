@@ -52,7 +52,7 @@ cd "$INSTALL_DIR"
 echo "[*] Creating virtual environment..."
 python3 -m venv "$VENV_DIR" # create
 VENV_BIN="$VENV_DIR/bin"     # Define the virtual environment's bin directory
-source "$VENV_BIN/activate" # activate
+source "$VENV_DIR/bin/activate" # activate
 
 # 4. Install Python dependencies into the virtual environment
 echo "[*] Installing Python packages (flask, paramiko) into virtual environment..."
@@ -103,7 +103,11 @@ echo "[*] Test running prefetch_services.py"
 echo "[*] Modify app.py to use virtual environment python"
 sed -i "s|/usr/bin/env python3|/home/servicemonitor/venv/bin/python3|" "$APP_DIR/app.py"
 
+# 11. Modify app.py to use venv python in subprocess calls
+echo "[*] Modify app.py to use venv python in subprocess calls"
+sed -i "s|subprocess.run(\['/usr/bin/python3'|subprocess.run(\['$VENV_BIN/python3'|g" "$APP_DIR/app.py"
 
-# 11. Done
+
+# 12. Done
 echo "✅ Installation complete."
 echo "👉 Visit your dashboard at http://<your_server_ip>:8484"
