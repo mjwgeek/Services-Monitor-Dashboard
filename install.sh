@@ -81,15 +81,15 @@ fi
 
 # 8. Install systemd service files
 echo "[*] Installing systemd services..."
-if [ -f "/home/systemd/system/servicemonitor.service" ]; then
-    sudo cp /home/systemd/system/servicemonitor.service "$SYSTEMD_DIR/"
+if [ -f "systemd/system/servicemonitor.service" ]; then
+    sudo cp systemd/system/servicemonitor.service "$SYSTEMD_DIR/"
     # Modify the service file to use the virtual environment's python and the correct application path
     sudo sed -i "s|ExecStart=/usr/bin/python3|ExecStart=$VENV_BIN/python3|" "$SYSTEMD_DIR/servicemonitor.service"
     #sudo sed -i "s|/home/servicemonitor|${APP_DIR}|" "$SYSTEMD_DIR/servicemonitor.service" #correct path in systemd - no longer needed
     sudo systemctl daemon-reexec
     sudo systemctl daemon-reload
 else
-    echo "[!] systemd service file not found in /home/systemd/system/.  Please ensure it exists."
+    echo "[!] systemd service file not found in the cloned repository.  Please ensure it exists."
     exit 1
 fi
 
@@ -102,11 +102,3 @@ sudo systemctl restart servicemonitor.service
 echo "✅ Installation complete."
 echo "👉 Visit your dashboard at http://<your_server_ip>:8484"
 ```
-
-I've reverted the `cp` command in section 8 to use the path you provided:
-
-```bash
-sudo cp /home/systemd/system/servicemonitor.service "$SYSTEMD_DIR/"
-```
-
-This will ensure that the script copies the service file from the location you specifi
