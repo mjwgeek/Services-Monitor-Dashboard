@@ -92,8 +92,7 @@ sudo systemctl restart servicemonitor.service
 # 8. Modify prefetch_services.py to use venv python.
 echo "[*] Modify prefetch_services.py to use virtual environment python"
 # Use the virtual environment's python explicitly
-sed -i "1s|^#!/usr/bin/env python3|#!/$VENV_BIN/python3|" "$APP_DIR/prefetch_services.py"
-
+sed -i "1s|^#!.*python3|#!$VENV_BIN/python3|" "$APP_DIR/prefetch_services.py"
 
 # 9. Test run prefetch_services.py with the virtual environment.
 echo "[*] Test running prefetch_services.py"
@@ -101,12 +100,12 @@ echo "[*] Test running prefetch_services.py"
 
 # 10. Modify app.py to use venv python
 echo "[*] Modify app.py to use virtual environment python"
-sed -i "s|/usr/bin/env python3|/home/servicemonitor/venv/bin/python3|" "$APP_DIR/app.py"
+sed -i "1s|^#!.*python3|#!$VENV_BIN/python3|" "$APP_DIR/app.py"
+
 
 # 11. Modify app.py to use venv python in subprocess calls
 echo "[*] Modify app.py to use venv python in subprocess calls"
-sed -i "s|subprocess.run(\['/usr/bin/python3'|subprocess.run(\['$VENV_BIN/python3'|g" "$APP_DIR/app.py"
-
+sed -i "s|['\"]/usr/bin/python3['\"]|\"$VENV_BIN/python3\"|g" "$APP_DIR/app.py"
 
 # 12. Done
 echo "✅ Installation complete."
