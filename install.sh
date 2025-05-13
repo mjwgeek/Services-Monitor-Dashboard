@@ -2,11 +2,11 @@
 set -e
 
 # Configuration variables
-INSTALL_DIR="/home/servicemonitor"
+INSTALL_DIR="/home/servicemonitor" # Installation directory
+APP_DIR="/home/servicemonitor"     # Application directory is the same as installation directory
 REPO_URL="https://github.com/mjwgeek/Services-Monitor-Dashboard.git"
 SYSTEMD_DIR="/etc/systemd/system"
-VENV_DIR="$INSTALL_DIR/venv" # Define virtual environment directory
-APP_DIR="$INSTALL_DIR" # Application directory is the same as install dir
+VENV_DIR="$INSTALL_DIR/venv"       # Virtual environment directory
 
 echo "🛠️ Starting Service Monitor installation..."
 
@@ -51,27 +51,16 @@ cd "$INSTALL_DIR"
 # 3. Create and activate a virtual environment
 echo "[*] Creating virtual environment..."
 python3 -m venv "$VENV_DIR" # create
-VENV_BIN="$VENV_DIR/bin" # Define the virtual environment's bin directory
-source "$VENV_DIR/bin/activate" # activate
+VENV_BIN="$VENV_DIR/bin"     # Define the virtual environment's bin directory
+source "$VENV_BIN/activate" # activate
 
 # 4. Install Python dependencies into the virtual environment
 echo "[*] Installing Python packages (flask, paramiko) into virtual environment..."
 "$VENV_BIN/pip3" install --no-cache-dir flask paramiko # Use the virtual environment's pip3 and disable cache
 
-# 5. # Application directory is the same as install dir, so no need to create or copy
-#echo "[*] Creating application directory: $APP_DIR"
-#sudo mkdir -p "$APP_DIR"
-#sudo chown "$USER":"$USER" "$APP_DIR"
-
-# 6. # No need to copy files, they are already in the correct location
-#echo "[*] Copying application files to $APP_DIR"
-# Copy all files from the repo to the app dir, excluding the venv and the script itself
-#find . -mindepth 1 -maxdepth 1 ! -name "venv" ! -name "install.sh" -exec cp -r {} "$APP_DIR" \;
-#Remove venv from app dir.  The find command already excludes it, but this is here for safety.
-rm -rf "$VENV_DIR"
-
-# 7. Ensure nodes.json exists (empty list)
-NODES_FILE="$APP_DIR/nodes.json" #check inside APP_DIR
+# 5. Ensure nodes.json exists (empty list)
+echo "[*] Ensuring nodes.json exists..."
+NODES_FILE="$APP_DIR/nodes.json" # Use APP_DIR
 if [ ! -f "$NODES_FILE" ]; then
     echo "[*] Creating empty nodes.json..."
     echo "[]" > "$NODES_FILE"
@@ -79,26 +68,25 @@ else
     echo "[!] nodes.json already exists. Skipping."
 fi
 
-# 8. Install systemd service files
+# 6. Install systemd service files
 echo "[*] Installing systemd services..."
-if [ -f "/home/servicemonitor/systemd/system/servicemonitor.service" ]; then
-    sudo cp /home/servicemonitor/systemd/system/servicemonitor.service "$SYSTEMD_DIR/"
-    # Modify the service file to use the virtual environment's python and the correct application path
+SERVICE_FILE="$APP_DIR/systemd/system/servicemonitor.service" # Full path
+if [ -f "$SERVICE_FILE" ]; then
+    sudo cp "$SERVICE_FILE" "$SYSTEMD_DIR/"
+    # Modify the service file to use the virtual environment's python
     sudo sed -i "s|ExecStart=/usr/bin/python3|ExecStart=$VENV_BIN/python3|" "$SYSTEMD_DIR/servicemonitor.service"
-    #sudo sed -i "s|/home/servicemonitor|${APP_DIR}|" "$SYSTEMD_DIR/servicemonitor.service" #correct path in systemd - no longer needed
     sudo systemctl daemon-reexec
     sudo systemctl daemon-reload
 else
-    echo "[!] systemd service file not found in the cloned repository.  Please ensure it exists."
+    echo "[!] systemd service file not found at $SERVICE_FILE.  Please ensure it exists."
     exit 1
 fi
 
-# 9. Enable and start main dashboard
+# 7. Enable and start main dashboard
 echo "[*] Enabling and starting servicemonitor.service..."
 sudo systemctl enable servicemonitor.service
 sudo systemctl restart servicemonitor.service
 
-# 10. Done
+# 8. Done
 echo "✅ Installation complete."
 echo "👉 Visit your dashboard at http://<your_server_ip>:8484"
-```
