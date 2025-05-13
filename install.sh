@@ -50,11 +50,12 @@ cd "$INSTALL_DIR"
 # 3. Create and activate a virtual environment
 echo "[*] Creating virtual environment..."
 python3 -m venv "$VENV_DIR" # create
-source "$VENV_DIR/bin/activate" # activate
+VENV_BIN="$VENV_DIR/bin" # Define the virtual environment's bin directory
+source "$VENV_BIN/activate" # activate
 
 # 4. Install Python dependencies into the virtual environment
 echo "[*] Installing Python packages (flask, paramiko) into virtual environment..."
-pip3 install flask paramiko
+"$VENV_BIN/pip3" install flask paramiko # Use the virtual environment's pip3
 
 # 5. Ensure nodes.json exists (empty list)
 NODES_FILE="$INSTALL_DIR/nodes.json"
@@ -69,7 +70,7 @@ fi
 echo "[*] Installing systemd services..."
 sudo cp systemd/system/.service "$SYSTEMD_DIR/"
 # Modify the service file to use the virtual environment's python
-sudo sed -i "s|ExecStart=/usr/bin/python3|ExecStart=$VENV_DIR/bin/python3|" "$SYSTEMD_DIR/servicemonitor.service"
+sudo sed -i "s|ExecStart=/usr/bin/python3|ExecStart=$VENV_BIN/python3|" "$SYSTEMD_DIR/servicemonitor.service"
 sudo systemctl daemon-reexec
 sudo systemctl daemon-reload
 
