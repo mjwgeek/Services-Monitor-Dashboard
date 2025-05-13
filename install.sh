@@ -29,20 +29,13 @@ echo "[2] Creating directory: $INSTALL_DIR"
 sudo mkdir -p "$INSTALL_DIR"
 sudo chown "$USER":"$USER" "$INSTALL_DIR"
 
-# Step 3. Clone or re-clone repository
+# Step 3. Clone or update repository
 if [ -d "$INSTALL_DIR/.git" ]; then
-    echo "[!] Repository already cloned to $INSTALL_DIR."
-    read -p "[3] Do you want to re-clone the repository? (y/N) " -r
-    if [[ "$REPLY" =~ ^[Yy]$ ]]; then
-        echo "[3a] Removing existing repository..."
-        sudo rm -rf "$INSTALL_DIR"
-        echo "[3b] Cloning from $REPO_URL..."
-        git clone "$REPO_URL" "$INSTALL_DIR"
-    else
-        echo "[3c] Skipping clone."
-    fi
+    echo "[3] Repository already exists at $INSTALL_DIR."
+    echo "[3a] Pulling latest changes..."
+    git -C "$INSTALL_DIR" pull
 else
-    echo "[3] Cloning from $REPO_URL..."
+    echo "[3] Cloning repository into $INSTALL_DIR..."
     git clone "$REPO_URL" "$INSTALL_DIR"
 fi
 cd "$INSTALL_DIR"
@@ -59,11 +52,14 @@ echo "[5] Installing Python packages (flask, paramiko)..."
 # Step 6. Ensure nodes.json exists
 echo "[6] Ensuring nodes.json exists..."
 NODES_FILE="$INSTALL_DIR/nodes.json"
-if [ ! -f "$NODES_FILE" ]; then
-    echo "[]" > "$NODES_FILE"
-    echo "[+] Created empty nodes.json"
+if [ -f "$NODES_FILE" ]; then
+    echo "[6a] Backing up existing nodes.json..."
+    cp "$NODES_FILE" "$NODES_FILE.bak"
+    echo "[!] nodes.json already exists. Skipping creation."
 else
-    echo "[!] nodes.json already exists. Skipping."
+    echo "[6] Creating empty nodes.json..."
+    echo "[]" > "$NODES_FILE"
+    echo "[+] Created nodes.json"
 fi
 
 # Step 7. Install systemd service
