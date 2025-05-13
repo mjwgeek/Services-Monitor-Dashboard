@@ -89,6 +89,11 @@ echo "[*] Enabling and starting servicemonitor.service..."
 sudo systemctl enable servicemonitor.service
 sudo systemctl restart servicemonitor.service
 
-# 8. Done
+# 8. Modify prefetch_services.py to use venv python.
+echo "[*] Modify prefetch_services.py to use virtual environment python"
+sed -i "1s|^#!/usr/bin/python3|#!/$VENV_BIN/python3|" "$APP_DIR/prefetch_services.py"
+
+
+# 9. Done
 echo "✅ Installation complete."
 echo "👉 Visit your dashboard at http://<your_server_ip>:8484"
