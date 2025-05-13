@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/home/servicemonitor/venv/bin/python3
 import json
 import os
 from app import load_nodes, get_local_services, get_remote_services
@@ -38,7 +38,7 @@ def update_cache():
         })
 
     with open(CACHE_FILE, 'w') as f:
-        json.dump(results, f)
+        json.dump(results, f, indent=2)
 
 if __name__ == "__main__":
     update_cache()
