@@ -55,7 +55,7 @@ source "$VENV_BIN/activate" # activate
 
 # 4. Install Python dependencies into the virtual environment
 echo "[*] Installing Python packages (flask, paramiko) into virtual environment..."
-"$VENV_BIN/pip3" install flask paramiko # Use the virtual environment's pip3
+"$VENV_BIN/pip3" install --no-cache-dir flask paramiko # Use the virtual environment's pip3 and disable cache
 
 # 5. Ensure nodes.json exists (empty list)
 NODES_FILE="$INSTALL_DIR/nodes.json"
