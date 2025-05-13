@@ -75,6 +75,8 @@ if [ -f "$SERVICE_FILE" ]; then
     sudo cp "$SERVICE_FILE" "$SYSTEMD_DIR/"
     # Modify the service file to use the virtual environment's python
     sudo sed -i "s|ExecStart=/usr/bin/python3|ExecStart=$VENV_BIN/python3|" "$SYSTEMD_DIR/servicemonitor.service"
+    # Add Environment to set VIRTUAL_ENV
+    sudo sed -i "s|ExecStart=|Environment=VIRTUAL_ENV=$VENV_DIR\nExecStart=|" "$SYSTEMD_DIR/servicemonitor.service"
     sudo systemctl daemon-reexec
     sudo systemctl daemon-reload
 else
