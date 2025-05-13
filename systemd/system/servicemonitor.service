@@ -5,7 +5,8 @@ After=network.target
 [Service]
 User=root
 WorkingDirectory=/home/servicemonitor
-ExecStart=/usr/bin/python3 /home/servicemonitor/app.py
+Environment=VIRTUAL_ENV=/home/servicemonitor/venv
+ExecStart=/home/servicemonitor/venv/bin/python3 /home/servicemonitor/app.py
 Restart=on-failure
 
 [Install]
