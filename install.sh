@@ -6,6 +6,7 @@ INSTALL_DIR="/home/servicemonitor"
 REPO_URL="https://github.com/mjwgeek/Services-Monitor-Dashboard.git"
 SYSTEMD_DIR="/etc/systemd/system"
 VENV_DIR="$INSTALL_DIR/venv" # Define virtual environment directory
+APP_DIR="$INSTALL_DIR/app" # Define application directory
 
 echo "🛠️ Starting Service Monitor installation..."
 
@@ -57,8 +58,19 @@ source "$VENV_BIN/activate" # activate
 echo "[*] Installing Python packages (flask, paramiko) into virtual environment..."
 "$VENV_BIN/pip3" install --no-cache-dir flask paramiko # Use the virtual environment's pip3 and disable cache
 
-# 5. Ensure nodes.json exists (empty list)
-NODES_FILE="$INSTALL_DIR/nodes.json"
+# 5. Create application directory
+echo "[*] Creating application directory: $APP_DIR"
+sudo mkdir -p "$APP_DIR"
+sudo chown "$USER":"$USER" "$APP_DIR"
+
+# 6. Copy application files
+echo "[*] Copying application files to $APP_DIR"
+cp -r * "$APP_DIR" # Copy all files from the repo to the app dir
+#Exclude venv
+rm -rf "$APP_DIR/venv"
+
+# 7. Ensure nodes.json exists (empty list)
+NODES_FILE="$APP_DIR/nodes.json" #check inside APP_DIR
 if [ ! -f "$NODES_FILE" ]; then
     echo "[*] Creating empty nodes.json..."
     echo "[]" > "$NODES_FILE"
@@ -66,19 +78,25 @@ else
     echo "[!] nodes.json already exists. Skipping."
 fi
 
-# 6. Install systemd service files
+# 8. Install systemd service files
 echo "[*] Installing systemd services..."
-sudo cp systemd/system/.service "$SYSTEMD_DIR/"
-# Modify the service file to use the virtual environment's python
-sudo sed -i "s|ExecStart=/usr/bin/python3|ExecStart=$VENV_BIN/python3|" "$SYSTEMD_DIR/servicemonitor.service"
-sudo systemctl daemon-reexec
-sudo systemctl daemon-reload
+if [ -f "systemd/system/servicemonitor.service" ]; then
+    sudo cp systemd/system/servicemonitor.service "$SYSTEMD_DIR/"
+    # Modify the service file to use the virtual environment's python and the correct application path
+    sudo sed -i "s|ExecStart=/usr/bin/python3|ExecStart=$VENV_BIN/python3|" "$SYSTEMD_DIR/servicemonitor.service"
+    sudo sed -i "s|/home/servicemonitor|${APP_DIR}|" "$SYSTEMD_DIR/servicemonitor.service" #correct path in systemd
+    sudo systemctl daemon-reexec
+    sudo systemctl daemon-reload
+else
+    echo "[!] systemd service file not found in the repository.  Please ensure it exists."
+    exit 1
+fi
 
-# 7. Enable and start main dashboard
+# 9. Enable and start main dashboard
 echo "[*] Enabling and starting servicemonitor.service..."
 sudo systemctl enable servicemonitor.service
 sudo systemctl restart servicemonitor.service
 
-# 8. Done
+# 10. Done
 echo "✅ Installation complete."
 echo "👉 Visit your dashboard at http://<your_server_ip>:8484"
