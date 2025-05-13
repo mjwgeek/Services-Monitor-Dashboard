@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, jsonify, flash
+from flask import Flask, send_file, request, redirect, jsonify, flash
 import subprocess
 import paramiko
 import os
@@ -6,15 +6,20 @@ import json
 import threading
 from pathlib import Path
 
+# Initialize Flask without blocking template loading
 app = Flask(__name__)
 app.secret_key = "supersecret"
 
-BASE_DIR = "/home/mike/servicemonitor"
-CACHE_FILE = f"{BASE_DIR}/cache.json"
-NODES_FILE = f"{BASE_DIR}/nodes.json"
-PREFETCH_SCRIPT = f"{BASE_DIR}/prefetch_services.py"
+# Base paths
+BASE_DIR = "/home/servicemonitor"
+CACHE_FILE = os.path.join(BASE_DIR, "cache.json")
+NODES_FILE = os.path.join(BASE_DIR, "nodes.json")
+PREFETCH_SCRIPT = os.path.join(BASE_DIR, "prefetch_services.py")
 
+# Node management
 def load_nodes():
+    if not os.path.exists(NODES_FILE):
+        return []
     with open(NODES_FILE) as f:
         return json.load(f)
 
@@ -22,6 +27,7 @@ def save_nodes(nodes):
     with open(NODES_FILE, "w") as f:
         json.dump(nodes, f, indent=2)
 
+# SSH helper
 def ssh_connect(node):
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -33,9 +39,10 @@ def ssh_connect(node):
         ssh.connect(node["host"], port=node["port"], username=node["user"], password=node.get("password"), timeout=5)
     return ssh
 
+# Parse systemctl output
 def parse_systemctl_output(output):
     services = []
-    for line in output.strip().split('\n'):
+    for line in output.strip().split("\n"):
         parts = line.split()
         if len(parts) >= 5:
             name, load, active, sub = parts[:4]
@@ -44,6 +51,7 @@ def parse_systemctl_output(output):
             services.append({'name': name, 'load': load, 'active': active, 'sub': sub})
     return services
 
+# Local and remote services
 def get_local_services():
     out = subprocess.check_output([
         "systemctl", "list-units", "--type=service", "--all", "--no-pager", "--no-legend"
@@ -59,38 +67,52 @@ def get_remote_services(node):
     ssh.close()
     return parse_systemctl_output(output)
 
+# Serve static index.html immediately
 @app.route('/')
 def index():
-    # Serve the template right away, without waiting for any service lookups or cache reads
-    return render_template('index.html')
+    # Serve the static index.html immediately using send_file
+    index_path = os.path.join(BASE_DIR, 'templates', 'index.html')
+    return send_file(index_path)
 
 @app.route('/api/services')
 def api_services():
-    # If cache missing, spawn background prefetch then return empty
+    # Always include local services immediately
+    try:
+        local_services = get_local_services()
+    except Exception:
+        local_services = []
+    local_node = {
+        'node': 'LOCAL',
+        'host': '127.0.0.1',
+        'reachable': True,
+        'services': local_services
+    }
+    # Load remote nodes from cache (or trigger prefetch)
+    remote_data = []
     if not os.path.exists(CACHE_FILE):
         threading.Thread(
-            target=lambda: subprocess.run(
-                ["/usr/bin/python3", PREFETCH_SCRIPT], cwd=BASE_DIR
-            ),
-            daemon=True
+            target=lambda: subprocess.run([
+                "/usr/bin/python3", PREFETCH_SCRIPT
+            ], cwd=BASE_DIR), daemon=True
         ).start()
-        return jsonify({"timestamp": None, "data": []})
-    with open(CACHE_FILE) as f:
-        data = json.load(f)
-    timestamp = os.path.getmtime(CACHE_FILE)
-    return jsonify({"timestamp": timestamp, "data": data})
+    else:
+        with open(CACHE_FILE) as f:
+            remote_data = json.load(f)
+    timestamp = os.path.getmtime(CACHE_FILE) if os.path.exists(CACHE_FILE) else None
+    # Combine local and remote (avoid duplicating LOCAL)
+    combined = [local_node] + [n for n in remote_data if n.get('node') != 'LOCAL']
+    return jsonify({"timestamp": timestamp, "data": combined})
 
 @app.route('/action', methods=["POST"])
 def action():
-    host = request.form["host"]
-    service = request.form["service"]
-    act = request.form["action"]
+    host = request.form['host']
+    service = request.form['service']
+    act = request.form['action']
     nodes = load_nodes()
-
-    if host == "LOCAL":
-        subprocess.run(["systemctl", act, service], check=False)
+    if host == 'LOCAL':
+        subprocess.run(['systemctl', act, service], check=False)
     else:
-        node = next((n for n in nodes if n["name"] == host), None)
+        node = next((n for n in nodes if n['name'] == host), None)
         if not node:
             flash(f"Host '{host}' not found.")
             return redirect('/')
@@ -101,10 +123,10 @@ def action():
         except Exception as e:
             flash(f"SSH error: {e}")
             return redirect('/')
-
     flash(f"{act.capitalize()} sent to {service} on {host}")
     return redirect('/')
 
+# Prefetch endpoint
 @app.route('/api/prefetch', methods=["POST"])
 def api_prefetch():
     try:
@@ -113,6 +135,7 @@ def api_prefetch():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
+# Force refresh endpoint
 @app.route('/force-refresh', methods=["POST"])
 def force_refresh():
     try:
@@ -121,22 +144,21 @@ def force_refresh():
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
 
+# Node addition endpoint
 @app.route('/add_node', methods=["POST"])
 def add_node():
     data = request.get_json()
-    name = data.get("name")
-    host = data.get("host")
-    port = int(data.get("port", 22))
-    user = data.get("user")
-    password = data.get("password")
+    name = data.get('name')
+    host = data.get('host')
+    port = int(data.get('port', 22))
+    user = data.get('user')
+    password = data.get('password')
     if not all([name, host, port, user]):
         return jsonify({"success": False, "message": "Missing fields"})
-
     key_file = f"/root/.ssh/id_rsa_{host.replace('.', '_')}"
-    pub_file = key_file + ".pub"
+    pub_file = key_file + '.pub'
     if not Path(key_file).exists():
         subprocess.run(["ssh-keygen", "-t", "rsa", "-b", "2048", "-f", key_file, "-N", ""], check=True)
-
     if password:
         try:
             pubkey = Path(pub_file).read_text().strip()
@@ -148,15 +170,13 @@ def add_node():
             ssh.close()
         except Exception as e:
             return jsonify({"success": False, "message": f"Key copy failed: {e}"})
-
     node_entry = {"name": name, "host": host, "port": port, "user": user, "use_key": True, "key_path": key_file}
     nodes = load_nodes()
     nodes.append(node_entry)
     save_nodes(nodes)
-
-    # Trigger immediate prefetch asynchronously
     threading.Thread(target=lambda: subprocess.run(["/usr/bin/python3", PREFETCH_SCRIPT], cwd=BASE_DIR), daemon=True).start()
     return jsonify({"success": True, "message": "Machine added successfully."})
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8484, threaded=True)
+
