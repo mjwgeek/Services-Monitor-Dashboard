@@ -99,6 +99,11 @@ sed -i "1s|^#!/usr/bin/env python3|#!/$VENV_BIN/python3|" "$APP_DIR/prefetch_ser
 echo "[*] Test running prefetch_services.py"
 "$VENV_BIN/python3" "$APP_DIR/prefetch_services.py"
 
-# 10. Done
+# 10. Modify app.py to use venv python
+echo "[*] Modify app.py to use virtual environment python"
+sed -i "s|/usr/bin/env python3|/home/servicemonitor/venv/bin/python3|" "$APP_DIR/app.py"
+
+
+# 11. Done
 echo "✅ Installation complete."
 echo "👉 Visit your dashboard at http://<your_server_ip>:8484"
