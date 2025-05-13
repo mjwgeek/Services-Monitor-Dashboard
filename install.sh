@@ -29,9 +29,18 @@ echo "[*] Creating directory: $INSTALL_DIR"
 sudo mkdir -p "$INSTALL_DIR"
 sudo chown "$USER":"$USER" "$INSTALL_DIR"
 
-# 2. Clone repository
+# 2. Clone or re-clone repository
 if [ -d "$INSTALL_DIR/.git" ]; then
-    echo "[!] Repository already cloned to $INSTALL_DIR. Skipping clone."
+    echo "[!] Repository already cloned to $INSTALL_DIR."
+    read -p "Do you want to re-clone the repository? (y/N) " -r
+    if [[ "$REPLY" =~ ^[Yy]$ ]]; then
+        echo "[*] Removing existing repository..."
+        sudo rm -rf "$INSTALL_DIR"
+        echo "[*] Cloning from $REPO_URL..."
+        git clone "$REPO_URL" "$INSTALL_DIR"
+    else
+        echo "[!] Skipping clone."
+    fi
 else
     echo "[*] Cloning from $REPO_URL..."
     git clone "$REPO_URL" "$INSTALL_DIR"
