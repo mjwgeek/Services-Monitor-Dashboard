@@ -88,6 +88,11 @@ echo "[9] Running prefetch_services.py once to verify..."
 "$VENV_DIR/bin/python" "$INSTALL_DIR/prefetch_services.py"
 
 # Step 10. Done
-LOCAL_IP=$(ip route get 1.1.1.1 | awk '{print $7; exit}')
+if command -v ip &> /dev/null; then
+    LOCAL_IP=$(ip route get 1.1.1.1 | awk '{print $7; exit}')
+elif command -v ifconfig &> /dev/null; then
+    LOCAL_IP=$(ifconfig | awk '/inet / && $2 != "127.0.0.1" {print $2; exit}')
+else
+    LOCAL_IP="<unknown>"
+fi
 echo "👉 Visit your dashboard at http://$LOCAL_IP:8484"
-
