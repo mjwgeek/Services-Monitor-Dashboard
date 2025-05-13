@@ -81,8 +81,8 @@ fi
 
 # 8. Install systemd service files
 echo "[*] Installing systemd services..."
-if [ -f "systemd/system/servicemonitor.service" ]; then
-    sudo cp systemd/system/servicemonitor.service "$SYSTEMD_DIR/"
+if [ -f "/home/servicemonitor/systemd/system/servicemonitor.service" ]; then
+    sudo cp /home/servicemonitor/systemd/system/servicemonitor.service "$SYSTEMD_DIR/"
     # Modify the service file to use the virtual environment's python and the correct application path
     sudo sed -i "s|ExecStart=/usr/bin/python3|ExecStart=$VENV_BIN/python3|" "$SYSTEMD_DIR/servicemonitor.service"
     #sudo sed -i "s|/home/servicemonitor|${APP_DIR}|" "$SYSTEMD_DIR/servicemonitor.service" #correct path in systemd - no longer needed
