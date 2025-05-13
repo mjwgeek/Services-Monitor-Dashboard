@@ -52,7 +52,7 @@ cd "$INSTALL_DIR"
 echo "[*] Creating virtual environment..."
 python3 -m venv "$VENV_DIR" # create
 VENV_BIN="$VENV_DIR/bin" # Define the virtual environment's bin directory
-source "$VENV_BIN/activate" # activate
+source "$VENV_DIR/bin/activate" # activate
 
 # 4. Install Python dependencies into the virtual environment
 echo "[*] Installing Python packages (flask, paramiko) into virtual environment..."
