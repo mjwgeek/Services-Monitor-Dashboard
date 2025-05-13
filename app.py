@@ -15,6 +15,8 @@ BASE_DIR = "/home/servicemonitor"
 CACHE_FILE = os.path.join(BASE_DIR, "cache.json")
 NODES_FILE = os.path.join(BASE_DIR, "nodes.json")
 PREFETCH_SCRIPT = os.path.join(BASE_DIR, "prefetch_services.py")
+# Add VENV_BIN - this should be defined in your environment or you can hardcode it, but hardcoding is not recommended.
+VENV_BIN = "/home/servicemonitor/venv/bin/python3" # Or get it from an environment variable if you set it in systemd
 
 # Node management
 def load_nodes():
@@ -36,7 +38,7 @@ def ssh_connect(node):
         pkey = paramiko.RSAKey.from_private_key_file(key_path)
         ssh.connect(node["host"], port=node["port"], username=node["user"], pkey=pkey, timeout=5)
     else:
-        ssh.connect(node["host"], port=node["port"], username=node["user"], password=node.get("password"), timeout=5)
+        ssh.connect(node["host"], port=node["port"], username=node.get("password"), timeout=5)
     return ssh
 
 # Parse systemctl output
@@ -92,7 +94,7 @@ def api_services():
     if not os.path.exists(CACHE_FILE):
         threading.Thread(
             target=lambda: subprocess.run([
-                "/usr/bin/python3", PREFETCH_SCRIPT
+                VENV_BIN, PREFETCH_SCRIPT  # Use VENV_BIN
             ], cwd=BASE_DIR), daemon=True
         ).start()
     else:
@@ -130,7 +132,7 @@ def action():
 @app.route('/api/prefetch', methods=["POST"])
 def api_prefetch():
     try:
-        subprocess.run(["/usr/bin/python3", PREFETCH_SCRIPT], check=True)
+        subprocess.run([VENV_BIN, PREFETCH_SCRIPT], check=True) # Use VENV_BIN
         return jsonify({"success": True})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -139,7 +141,7 @@ def api_prefetch():
 @app.route('/force-refresh', methods=["POST"])
 def force_refresh():
     try:
-        subprocess.run(["/usr/bin/python3", PREFETCH_SCRIPT], check=True)
+        subprocess.run([VENV_BIN, PREFETCH_SCRIPT], check=True) # Use VENV_BIN
         return jsonify({"success": True, "message": "Cache refreshed"})
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
@@ -174,9 +176,8 @@ def add_node():
     nodes = load_nodes()
     nodes.append(node_entry)
     save_nodes(nodes)
-    threading.Thread(target=lambda: subprocess.run(["/usr/bin/python3", PREFETCH_SCRIPT], cwd=BASE_DIR), daemon=True).start()
+    threading.Thread(target=lambda: subprocess.run([VENV_BIN, PREFETCH_SCRIPT], cwd=BASE_DIR), daemon=True).start() # Use VENV_BIN
     return jsonify({"success": True, "message": "Machine added successfully."})
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8484, threaded=True)
-
