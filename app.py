@@ -178,6 +178,38 @@ def add_node():
     save_nodes(nodes)
     threading.Thread(target=lambda: subprocess.run([VENV_BIN, PREFETCH_SCRIPT], cwd=BASE_DIR), daemon=True).start() # Use VENV_BIN
     return jsonify({"success": True, "message": "Machine added successfully."})
+    
+@app.route('/logs', methods=["POST"])
+def logs():
+    try:
+        data = request.get_json()
+        host = data.get("host")
+        service = data.get("service")
+        follow = data.get("follow", False)
+        nodes = load_nodes()
+
+        if host == "LOCAL":
+            # Use -n 50 for live, -n 100 for standard
+            lines = "50" if follow else "100"
+            cmd = ["journalctl", "-u", service, "--no-pager", "-n", lines]
+            output = subprocess.check_output(cmd, stderr=subprocess.STDOUT, universal_newlines=True)
+
+        else:
+            node = next((n for n in nodes if n["name"] == host), None)
+            if not node:
+                return jsonify({"success": False, "message": f"Node '{host}' not found"})
+
+            ssh = ssh_connect(node)
+            lines = "50" if follow else "100"
+            cmd = f"journalctl -u {service} --no-pager -n {lines}"
+            stdin, stdout, stderr = ssh.exec_command(cmd)
+            output = stdout.read().decode() or stderr.read().decode()
+            ssh.close()
+
+        return jsonify({"success": True, "logs": output})
+
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8484, threaded=True)
