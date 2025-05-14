@@ -96,3 +96,5 @@ chmod +x install.sh
 Here’s what the Services Monitor Dashboard looks like:
 
 ![Dashboard Preview](assets/dash.jpg)
+![Dashboard Preview](assets/ports.jpg)
+![Dashboard Preview](assets/logs.jpg)
