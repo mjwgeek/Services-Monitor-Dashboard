@@ -44,14 +44,14 @@ else
 fi
 cd "$INSTALL_DIR"
 
-# Step 4. Create virtual environment if missing
-if [ ! -d "$VENV_DIR" ]; then
-    echo "[4] Creating virtual environment..."
+# Step 4. Create virtual environment if missing or broken
+if [ ! -x "$VENV_DIR/bin/activate" ]; then
+    echo "[4] Creating or fixing virtual environment..."
+    rm -rf "$VENV_DIR"
     python3 -m venv "$VENV_DIR"
 else
-    echo "[4] Virtual environment already exists. Skipping."
+    echo "[4] Virtual environment already exists and looks valid. Skipping."
 fi
-source "$VENV_DIR/bin/activate"
 
 # Step 5. Install Python dependencies into virtual environment
 echo "[5] Installing Python packages (flask, paramiko)..."
