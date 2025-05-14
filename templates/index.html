@@ -251,20 +251,22 @@ function updateTabs(results) {
     node.services.forEach(service => {
       const tr = document.createElement("tr");
       if (service.active === 'failed') tr.classList.add("failed");
-      tr.innerHTML = `
-        <td>${service.name}</td>
-        <td>${service.load}</td>
-        <td class="status-${service.active}">${service.active}</td>
-        <td>${service.sub}</td>
-        <td>
-          <form method="post" action="/action" style="display:inline;">
-            <input type="hidden" name="host" value="${id}">
-            <input type="hidden" name="service" value="${service.name}">
-            <button class="button" name="action" value="restart">Restart</button>
-            <button class="button" name="action" value="stop">Stop</button>
-            <button class="button" name="action" value="start">Start</button>
-          </form>
-        </td>`;
+		tr.innerHTML = `
+		  <td>${service.name}</td>
+		  <td>${service.load}</td>
+		  <td class="status-${service.active}">${service.active}</td>
+		  <td>${service.sub}</td>
+		  <td>
+			<form method="post" action="/action" style="display:inline;">
+			  <input type="hidden" name="host" value="${id}">
+			  <input type="hidden" name="service" value="${service.name}">
+			  <button class="button" name="action" value="restart">Restart</button>
+			  <button class="button" name="action" value="stop">Stop</button>
+			  <button class="button" name="action" value="start">Start</button>
+			</form>
+			<button class="button" onclick="viewLogs('${id}', '${service.name}')">Logs</button>
+		  </td>
+		`;
       tbody.appendChild(tr);
     });
 
@@ -417,6 +419,72 @@ function waitForTab(name, retries = 10) {
   }
 }
 
+let liveLogTimer = null;
+let currentLogHost = null;
+let currentLogService = null;
+let isLive = false;
+
+function viewLogs(host, service) {
+  currentLogHost = host;
+  currentLogService = service;
+  isLive = false;
+  document.getElementById("liveLogBtn").textContent = "▶ Live Logs";
+  showSpinner();
+  fetchLogs(false);
+}
+
+function fetchLogs(follow) {
+  fetch("/logs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ host: currentLogHost, service: currentLogService, follow })
+  })
+  .then(res => res.json())
+  .then(result => {
+    hideSpinner();
+    if (result.success) {
+      document.getElementById("logContent").textContent = result.logs;
+      if (!isLive) {
+        document.getElementById("logModal").style.display = "block";
+      }
+    } else {
+      showToast("❌ Failed to fetch logs: " + result.message);
+    }
+  })
+  .catch(err => {
+    hideSpinner();
+    showToast("❌ Error fetching logs: " + err);
+  });
+}
+
+
+function toggleLiveLogs() {
+  if (!isLive) {
+    isLive = true;
+    document.getElementById("liveLogBtn").textContent = "⏹ Stop";
+    liveLogTimer = setInterval(() => fetchLogs(true), 2000);
+  } else {
+    isLive = false;
+    document.getElementById("liveLogBtn").textContent = "▶ Live Logs";
+    clearInterval(liveLogTimer);
+  }
+}
+
+function closeLogModal() {
+  document.getElementById("logModal").style.display = "none";
+  if (liveLogTimer) clearInterval(liveLogTimer);
+  isLive = false;
+  document.getElementById("liveLogBtn").textContent = "▶ Live Logs";
+}
+
+function downloadLogs() {
+  const blob = new Blob([document.getElementById("logContent").textContent], { type: "text/plain" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `${currentLogService || "service"}.log`;
+  a.click();
+}
+
 function submitMachineForm() {
   const form = document.getElementById("addMachineForm");
   const data = {
@@ -463,5 +531,16 @@ function submitMachineForm() {
 
 fetchData();
 </script>
+<div id="logModal" style="display:none; position:fixed; top:10%; left:10%; width:80%; height:80%; background:#111; color:#eee; border:1px solid #444; padding:20px; overflow:auto; z-index:10000;">
+  <div style="display:flex; justify-content:space-between; align-items:center;">
+    <h3 style="margin:0;">Service Logs</h3>
+    <div>
+      <button onclick="downloadLogs()" class="button">⬇ Download</button>
+      <button onclick="toggleLiveLogs()" class="button" id="liveLogBtn">▶ Live Logs</button>
+      <button onclick="closeLogModal()" class="button">✖ Close</button>
+    </div>
+  </div>
+  <pre id="logContent" style="white-space:pre-wrap; background:#000; padding:10px; border:1px solid #333; height:90%; overflow:auto; margin-top:10px;"></pre>
+</div>
 </body>
 </html>
