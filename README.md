@@ -91,6 +91,16 @@ chmod +x install.sh
 
 👉 Visit your dashboard at `http://YourIpAddress:8484`
 
+## 🔄 Updating the Dashboard
+
+To update your existing Service Monitor Dashboard to the latest version:
+
+```bash
+curl -s -o update.sh https://raw.githubusercontent.com/mjwgeek/Services-Monitor-Dashboard/main/update.sh
+chmod +x update.sh
+./update.sh
+```
+
 ## 📸 Preview
 
 Here’s what the Services Monitor Dashboard looks like:
