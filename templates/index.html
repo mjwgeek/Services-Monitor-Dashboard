@@ -1,10 +1,17 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8">
   <title>Services Monitor Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    body { font-family: sans-serif; background: #1e1e1e; color: #eee; padding: 20px; }
+    body {
+      font-family: sans-serif;
+      background-color: #1e1e1e;
+      color: #eee;
+      margin: 0;
+      padding: 20px;
+    }
     .header, .header-controls {
       display: flex;
       flex-wrap: wrap;
@@ -13,13 +20,14 @@
       justify-content: space-between;
       margin-bottom: 10px;
     }
-    .tabs {
+    .tabs, .subtabs {
       overflow-x: auto;
       white-space: nowrap;
       background-color: #111;
       margin-bottom: 10px;
+      display: flex;
     }
-    .tabs button {
+    .tabs button, .subtabs button {
       background-color: inherit;
       border: none;
       cursor: pointer;
@@ -27,10 +35,20 @@
       color: #ccc;
       font-size: 16px;
     }
-    .tabs button.active { background-color: #444; color: white; }
-    .tabcontent { display: none; }
-    .table-wrapper { overflow-x: auto; }
-
+    .tabs button.active, .subtabs button.active {
+      background-color: #444;
+      color: white;
+    }
+    .tabcontent {
+      display: none;
+      padding-top: 10px;
+    }
+    .tabcontent.active {
+      display: block;
+    }
+    .table-wrapper {
+      overflow-x: auto;
+    }
     table {
       width: 100%;
       border-collapse: collapse;
@@ -38,7 +56,7 @@
       min-width: 700px;
     }
     th, td {
-      padding: 4px 6px;
+      padding: 6px 10px;
       border-bottom: 1px solid #444;
       white-space: nowrap;
       overflow: hidden;
@@ -61,10 +79,20 @@
       font-size: 14px;
     }
 
-    .button { font-size: 12px; margin-left: 2px; }
+    .button {
+      font-size: 12px;
+      margin-left: 2px;
+    }
 
-    .form-group { margin-bottom: 10px; }
-    label { display: block; margin-bottom: 4px; font-size: 14px; }
+    .form-group {
+      margin-bottom: 10px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 14px;
+    }
 
     #searchInput {
       width: 100%;
@@ -137,28 +165,44 @@
     <select id="refreshInterval">
       <option value="60000" selected>60s</option>
       <option value="120000">120s</option>
+      <option value="300000">300s</option>
     </select>
-    <label><input type="checkbox" id="autoRefreshToggle" checked> Auto</label>
+    <label>
+      <input type="checkbox" id="autoRefreshToggle">
+      Auto
+    </label>
     <select id="statusFilter" onchange="applyFilters()">
       <option value="all">All</option>
       <option value="active">Active</option>
       <option value="inactive">Inactive</option>
       <option value="failed">Failed</option>
+      <option value="tcp">TCP</option>
+      <option value="udp">UDP</option>
     </select>
     <button onclick="forceRefresh()">🔁 Force Refresh Cache</button>
   </div>
 </div>
 
-<input type="text" id="searchInput" placeholder="Filter services...">
-<div id="loadingMessage">⏳ Loading service data, please wait...</div>
-<div class="tabs" id="tabButtons"></div>
-<div id="tabContainer"></div>
-<div id="toast">Status updated</div>
-<div id="spinnerOverlay"><div class="spinner"></div></div>
 
-<!-- + New Machine tab content -->
-<div class="tabcontent" id="Nodes">
-  <h2>Add Machine</h2>
+<!-- Removed search input box -->
+<!-- <input type="text" id="searchInput" placeholder="Filter services or ports..." oninput="applyFilters()"> -->
+<div id="loadingMessage">⏳ Loading data, please wait...</div>
+
+<!-- Tabs -->
+<div class="tabs">
+  <button class="tablink active" onclick="openMainTab(event, 'services')">Services</button>
+  <button class="tablink" onclick="openMainTab(event, 'ports')">Ports</button>
+  <button class="tablink" onclick="openMainTab(event, 'addMachine')">+ New Machine</button>
+</div>
+
+<div class="subtabs" id="services-subtabs"></div>
+<div class="tabcontent active" id="services-tabcontent"></div>
+
+<div class="subtabs" id="ports-subtabs" style="display:none;"></div>
+<div class="tabcontent" id="ports-tabcontent" style="display:none;"></div>
+
+<div class="tabcontent" id="addMachine">
+  <h2>Add New Machine</h2>
   <form id="addMachineForm" onsubmit="return submitMachineForm();">
     <div class="form-group">
       <label for="name">Name:</label>
@@ -169,7 +213,7 @@
       <input required type="text" name="host" id="host">
     </div>
     <div class="form-group">
-      <label for="port">Port:</label>
+      <label for="port">SSH Port:</label>
       <input required type="number" name="port" id="port" value="22">
     </div>
     <div class="form-group">
@@ -177,196 +221,246 @@
       <input required type="text" name="user" id="user" value="root">
     </div>
     <div class="form-group">
-      <label for="password">Password (optional - used for key setup):</label>
+      <label for="password">Password (optional):</label>
       <input type="password" name="password" id="password">
     </div>
     <button type="submit">Add Machine</button>
   </form>
 </div>
+
+<div id="toast">Status updated</div>
+<div id="spinnerOverlay"><div class="spinner"></div></div>
 <script>
-let lastTab = localStorage.getItem("lastTab") || "LOCAL";
+let servicesData = {};
+let portsData = {};
 let refreshTimer = null;
+let currentMainTab = 'services';
+let currentSubtab = {
+  services: 'LOCAL',
+  ports: 'LOCAL'
+};
 
-function fetchData() {
-  showSpinner();
-  fetch("/api/services")
-    .then(res => res.json())
-    .then(result => {
-      const { data, timestamp } = result;
-      document.getElementById("loadingMessage").style.display = "none";
-      updateTabs(data);
-      updateTimestamp(timestamp);
-      hideSpinner();
-      scheduleRefresh();
-    })
-    .catch(err => {
-      document.getElementById("loadingMessage").innerText = "⚠ Failed to load services. Please try refreshing.";
-      hideSpinner();
-      console.error("Fetch failed", err);
-    });
+function openMainTab(evt, tab) {
+  document.querySelectorAll('.tablink').forEach(btn => btn.classList.remove('active'));
+  evt.currentTarget.classList.add('active');
+  currentMainTab = tab;
+
+  document.getElementById('services-tabcontent').style.display = tab === 'services' ? 'block' : 'none';
+  document.getElementById('services-subtabs').style.display = tab === 'services' ? 'flex' : 'none';
+
+  document.getElementById('ports-tabcontent').style.display = tab === 'ports' ? 'block' : 'none';
+  document.getElementById('ports-subtabs').style.display = tab === 'ports' ? 'flex' : 'none';
+
+  document.getElementById('addMachine').style.display = tab === 'addMachine' ? 'block' : 'none';
+
+  // ✅ Fetch ports only when entering the ports tab for the first time
+  if (tab === 'ports' && Object.keys(portsData).length === 0) {
+    showSpinner();
+    document.getElementById("loadingMessage").style.display = "block";
+
+    fetch('/api/ports')
+      .then(res => res.json())
+      .then(data => {
+        portsData = Object.fromEntries(data.map(n => [n.node, n]));
+        renderSubtabs('ports', Object.keys(portsData));
+        switchSubtab('ports', currentSubtab.ports || 'LOCAL');
+        document.getElementById("loadingMessage").style.display = "none";
+        hideSpinner();
+      })
+      .catch(err => {
+        showToast("⚠ Failed to fetch ports");
+        document.getElementById("loadingMessage").style.display = "none";
+        hideSpinner();
+      });
+  }
 }
 
-function updateTabs(results) {
-  const tabButtons = document.getElementById("tabButtons");
-  const tabContainer = document.getElementById("tabContainer");
-  tabButtons.innerHTML = '';
-  tabContainer.innerHTML = '';
 
-  results.forEach((node, index) => {
-    const id = node.node;
-    const btn = document.createElement("button");
-    btn.textContent = node.node;
-    btn.className = "tablinks";
-    if (id === lastTab || (!lastTab && index === 0)) btn.classList.add("active");
-    btn.onclick = () => switchTab(id);
-    tabButtons.appendChild(btn);
+function switchSubtab(type, nodeName) {
+  currentSubtab[type] = nodeName;
 
-    const div = document.createElement("div");
-    div.id = id;
-    div.className = "tabcontent";
-    div.style.display = (id === lastTab) ? "block" : "none";
+  document.querySelectorAll(`#${type}-subtabs button`).forEach(btn => btn.classList.remove('active'));
+  document.getElementById(`${type}-subtab-${nodeName}`)?.classList.add('active');
 
-    const summary = document.createElement("div");
-    summary.className = "summary";
-    summary.id = `summary-${id}`;
-    div.appendChild(summary);
+  const tabcontent = document.getElementById(`${type}-tabcontent`);
+  tabcontent.innerHTML = '';
 
-    const wrapper = document.createElement("div");
-    wrapper.className = "table-wrapper";
-
-    const table = document.createElement("table");
-    table.dataset.host = id;
-    const thead = document.createElement("thead");
-    thead.innerHTML = `
-      <tr>
-        <th onclick="sortTable(this)">Name</th>
-        <th onclick="sortTable(this)">Load</th>
-        <th onclick="sortTable(this)">Active</th>
-        <th onclick="sortTable(this)">Sub</th>
-        <th>Actions</th>
-      </tr>`;
-    table.appendChild(thead);
-
-    const tbody = document.createElement("tbody");
-    node.services.forEach(service => {
-      const tr = document.createElement("tr");
-      if (service.active === 'failed') tr.classList.add("failed");
-		tr.innerHTML = `
-		  <td>${service.name}</td>
-		  <td>${service.load}</td>
-		  <td class="status-${service.active}">${service.active}</td>
-		  <td>${service.sub}</td>
-		  <td>
-			<form method="post" action="/action" style="display:inline;">
-			  <input type="hidden" name="host" value="${id}">
-			  <input type="hidden" name="service" value="${service.name}">
-			  <button class="button" name="action" value="restart">Restart</button>
-			  <button class="button" name="action" value="stop">Stop</button>
-			  <button class="button" name="action" value="start">Start</button>
-			</form>
-			<button class="button" onclick="viewLogs('${id}', '${service.name}')">Logs</button>
-		  </td>
-		`;
-      tbody.appendChild(tr);
-    });
-
-    table.appendChild(tbody);
-    wrapper.appendChild(table);
-    div.appendChild(wrapper);
-    tabContainer.appendChild(div);
-    updateSummary(id);
-  });
-
-  // Add the + New Machine tab manually
-  const nodeBtn = document.createElement("button");
-  nodeBtn.textContent = "+ New Machine";
-  nodeBtn.className = "tablinks";
-  nodeBtn.onclick = () => switchTab("Nodes");
-  tabButtons.appendChild(nodeBtn);
-  if (lastTab === "Nodes") nodeBtn.classList.add("active");
-  document.getElementById("Nodes").style.display = lastTab === "Nodes" ? "block" : "none";
-
-  applyFilters();
-}
-
-function switchTab(tabId) {
-  document.querySelectorAll(".tabcontent").forEach(div => div.style.display = "none");
-  document.querySelectorAll(".tablinks").forEach(btn => btn.classList.remove("active"));
-  const el = document.getElementById(tabId);
-  if (el) el.style.display = "block";
-  const btn = Array.from(document.getElementsByClassName("tablinks")).find(b => b.textContent.trim() === tabId || b.textContent.includes(tabId));
-  if (btn) btn.classList.add("active");
-  lastTab = tabId;
-  localStorage.setItem("lastTab", tabId);
-  updateSummary(tabId);
-  applyFilters();
-}
-
-function applyFilters() {
-  const filter = document.getElementById("statusFilter")?.value || "all";
-  const search = document.getElementById("searchInput").value.toLowerCase();
-  const tab = document.getElementById(lastTab);
-  if (!tab) return;
-  tab.querySelectorAll("tbody tr").forEach(row => {
-    const status = row.cells[2].textContent.trim().toLowerCase();
-    const text = row.innerText.toLowerCase();
-    row.style.display = (filter === 'all' || filter === status) && text.includes(search) ? '' : 'none';
-  });
-}
-
-function sortTable(header) {
-  const table = header.closest("table");
-  const index = Array.from(header.parentNode.children).indexOf(header);
-  const rows = Array.from(table.tBodies[0].rows);
-  const asc = header.classList.toggle("asc");
-  rows.sort((a, b) => a.cells[index].textContent.localeCompare(b.cells[index].textContent) * (asc ? 1 : -1));
-  rows.forEach(r => table.tBodies[0].appendChild(r));
-}
-
-function updateSummary(host) {
-  const tab = document.getElementById(host);
-  if (!tab) return;
-  let active = 0, failed = 0, inactive = 0;
-  tab.querySelectorAll("tbody tr").forEach(r => {
-    const s = r.cells[2].textContent.trim().toLowerCase();
-    if (s === 'active') active++;
-    else if (s === 'failed') failed++;
-    else inactive++;
-  });
-  document.getElementById(`summary-${host}`).innerText =
-    `✓ Running: ${active}   ⚠ Inactive: ${inactive}   ✖ Failed: ${failed}`;
-}
-
-function updateTimestamp(ts = null) {
-  if (!ts) {
-    document.getElementById("lastUpdated").innerText = "Last updated: --:--:--";
-    return;
+  if (type === 'services') {
+    renderServicesPanel(nodeName);
+  } else if (type === 'ports') {
+    renderPortsPanel(nodeName);
   }
 
-  const date = new Date(ts * 1000); // Convert UNIX timestamp (in seconds) to milliseconds
-  const formatted = date.toLocaleString(); // You can customize this if needed
-  document.getElementById("lastUpdated").innerText = `Last updated: ${formatted}`;
+  // Delay filter application until table rows are fully added
+  requestAnimationFrame(applyFilters);
+}
+
+
+function renderSubtabs(type, nodeList) {
+  const subtabs = document.getElementById(`${type}-subtabs`);
+  subtabs.innerHTML = '';
+  nodeList.forEach(name => {
+    const btn = document.createElement('button');
+    btn.textContent = name;
+    btn.id = `${type}-subtab-${name}`;
+    btn.onclick = () => switchSubtab(type, name);
+    if (name === currentSubtab[type]) btn.classList.add('active');
+    subtabs.appendChild(btn);
+  });
+}
+
+function renderServicesPanel(name) {
+  const tab = document.getElementById('services-tabcontent');
+  const node = servicesData[name];
+  if (!node) return;
+  const wrapper = document.createElement('div');
+  wrapper.className = 'table-wrapper';
+
+  const table = document.createElement('table');
+  table.innerHTML = `
+    <thead>
+      <tr><th>Name</th><th>Load</th><th>Active</th><th>Sub</th><th>Actions</th></tr>
+    </thead>`;
+  const tbody = document.createElement('tbody');
+
+  node.services.forEach(service => {
+    const tr = document.createElement('tr');
+    if (service.active === 'failed') tr.classList.add('failed');
+    tr.innerHTML = `
+      <td>${service.name}</td>
+      <td>${service.load}</td>
+      <td class="status-${service.active}">${service.active}</td>
+      <td>${service.sub}</td>
+      <td>
+        <form method="post" action="/action" style="display:inline;">
+          <input type="hidden" name="host" value="${name}">
+          <input type="hidden" name="service" value="${service.name}">
+          <button class="button" name="action" value="restart">Restart</button>
+          <button class="button" name="action" value="stop">Stop</button>
+          <button class="button" name="action" value="start">Start</button>
+        </form>
+        <button class="button" onclick="viewLogs('${name}', '${service.name}')">Logs</button>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+
+  table.appendChild(tbody);
+  wrapper.appendChild(table);
+  tab.appendChild(wrapper);
+}
+
+function renderPortsPanel(name) {
+  const tab = document.getElementById('ports-tabcontent');
+  const node = portsData[name];
+  if (!node) return;
+  const wrapper = document.createElement('div');
+  wrapper.className = 'table-wrapper';
+
+  const table = document.createElement('table');
+  table.innerHTML = `
+    <thead>
+      <tr><th>Protocol</th><th>Port</th><th>Process</th><th>PID</th></tr>
+    </thead>`;
+  const tbody = document.createElement('tbody');
+
+  node.ports.forEach(port => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${port.protocol}</td>
+      <td>${port.port}</td>
+      <td>${port.process}</td>
+      <td>${port.pid}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  table.appendChild(tbody);
+  wrapper.appendChild(table);
+  tab.appendChild(wrapper);
+}
+
+function fetchData(forcePorts = false) {
+  showSpinner();
+  const fetches = [
+    fetch('/api/services').then(res => res.json())
+  ];
+  if (forcePorts) {
+    fetches.push(fetch('/api/ports').then(res => res.json()));
+  } else {
+    fetches.push(Promise.resolve([]));
+  }
+
+  Promise.all(fetches).then(([servicesResp, portsResp]) => {
+    servicesData = Object.fromEntries(servicesResp.data.map(n => [n.node, n]));
+    if (portsResp.length > 0) {
+      portsData = Object.fromEntries(portsResp.map(n => [n.node, n]));
+    }
+
+    const nodeNames = Object.keys(servicesData);
+    renderSubtabs('services', nodeNames);
+    renderSubtabs('ports', nodeNames);
+    switchSubtab('services', currentSubtab.services);
+    switchSubtab('ports', currentSubtab.ports);
+    document.getElementById("loadingMessage").style.display = "none";
+    updateTimestamp(servicesResp.timestamp);
+    scheduleRefresh();
+    hideSpinner();
+  });
 }
 
 function manualRefresh() {
-  fetchData();
+  if (currentMainTab === 'services') {
+    fetchData(false);
+  } else if (currentMainTab === 'ports') {
+    fetchData(true);
+  }
 }
 
-function forceRefresh() {
-  showToast("Refreshing cache...");
-  fetch("/force-refresh", { method: "POST" })
-    .then(res => res.json())
-    .then(json => {
-      if (json.success) {
-        showToast("✅ Cache refreshed");
-        fetchData();
-      } else {
-        showToast("⚠ " + json.message);
-      }
-    })
-    .catch(err => {
-      showToast("⚠ Refresh failed: " + err);
-    });
+function scheduleRefresh(reset = false) {
+  const auto = document.getElementById("autoRefreshToggle").checked = false;
+  const interval = Math.max(60000, Math.min(300000, parseInt(document.getElementById("refreshInterval").value || "60000")));
+  if (refreshTimer) clearTimeout(refreshTimer);
+  if (auto && currentMainTab === 'services') {
+    refreshTimer = setTimeout(() => fetchData(false), interval);
+  }
+  if (reset) showToast(`🔁 Auto-refresh set to ${interval / 60000} min`);
+}
+
+// Start with auto-refresh ON for first load
+document.getElementById("autoRefreshToggle").checked = true;
+fetchData(currentMainTab === 'ports');
+
+// After first fetch, disable auto-refresh
+setTimeout(() => {
+  document.getElementById("autoRefreshToggle").checked = false;
+  if (refreshTimer) {
+    clearTimeout(refreshTimer);
+    refreshTimer = null;
+    showToast("⏹ Auto-refresh disabled after first load");
+  }
+}, 5000); // adjust time if needed
+
+function applyFilters() {
+  const statusFilter = document.getElementById("statusFilter")?.value || "all";
+  const tabType = currentMainTab;
+  const tableWrapper = document.getElementById(`${tabType}-tabcontent`);
+  if (!tableWrapper) return;
+
+  tableWrapper.querySelectorAll("tbody tr").forEach(row => {
+    if (tabType === 'services') {
+      const status = row.querySelector('td:nth-child(3)')?.textContent?.trim()?.toLowerCase();
+      row.style.display = (statusFilter === 'all' || status === statusFilter) ? '' : 'none';
+    } else if (tabType === 'ports') {
+      const proto = row.querySelector('td:nth-child(1)')?.textContent?.trim()?.toLowerCase();
+      row.style.display = (statusFilter === 'all' || proto === statusFilter) ? '' : 'none';
+    }
+  });
+}
+
+function updateTimestamp(ts) {
+  const span = document.getElementById("lastUpdated");
+  if (!ts) return span.innerText = "Last updated: --:--:--";
+  const date = new Date(ts * 1000);
+  span.innerText = "Last updated: " + date.toLocaleString();
 }
 
 function showToast(msg) {
@@ -383,40 +477,8 @@ function showToast(msg) {
 function showSpinner() {
   document.getElementById("spinnerOverlay").style.display = "flex";
 }
-
 function hideSpinner() {
   document.getElementById("spinnerOverlay").style.display = "none";
-}
-
-function scheduleRefresh(reset = false) {
-  const auto = document.getElementById("autoRefreshToggle").checked;
-  const interval = Math.max(60000, Math.min(300000, parseInt(document.getElementById("refreshInterval").value || "60000")));
-
-  if (refreshTimer) clearTimeout(refreshTimer);
-
-  if (auto) {
-    refreshTimer = setTimeout(() => {
-      fetch("/api/prefetch", { method: "POST" })
-        .then(() => fetchData())  // refresh page data after cache refresh
-        .catch(() => fetchData()); // fallback if prefetch fails
-    }, interval);
-  }
-
-  if (reset) {
-    showToast(`🔁 Auto-refresh set to ${interval / 60000} minute(s)`);
-  }
-}
-
-function waitForTab(name, retries = 10) {
-  const tabExists = Array.from(document.querySelectorAll(".tablinks"))
-    .some(btn => btn.textContent.trim() === name);
-  if (tabExists) {
-    switchTab(name);
-  } else if (retries > 0) {
-    setTimeout(() => waitForTab(name, retries - 1), 300);
-  } else {
-    showToast("⚠ Tab '" + name + "' did not appear in time.");
-  }
 }
 
 let liveLogTimer = null;
@@ -438,25 +500,25 @@ function fetchLogs(follow) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ host: currentLogHost, service: currentLogService, follow })
-  })
-  .then(res => res.json())
-  .then(result => {
-    hideSpinner();
-    if (result.success) {
-      document.getElementById("logContent").textContent = result.logs;
-      if (!isLive) {
-        document.getElementById("logModal").style.display = "block";
+  }).then(res => res.json())
+    .then(result => {
+      if (result.success) {
+        if (follow) {
+          // Append only new log lines
+          const pre = document.getElementById("logContent");
+          pre.textContent += result.logs;
+          pre.scrollTop = pre.scrollHeight; // auto-scroll
+        } else {
+          document.getElementById("logContent").textContent = result.logs;
+          document.getElementById("logModal").style.display = "block";
+        }
+      } else {
+        showToast("❌ Failed to fetch logs: " + result.message);
       }
-    } else {
-      showToast("❌ Failed to fetch logs: " + result.message);
-    }
-  })
-  .catch(err => {
-    hideSpinner();
-    showToast("❌ Error fetching logs: " + err);
-  });
+    }).catch(err => {
+      showToast("❌ Error fetching logs: " + err);
+    });
 }
-
 
 function toggleLiveLogs() {
   if (!isLive) {
@@ -472,9 +534,19 @@ function toggleLiveLogs() {
 
 function closeLogModal() {
   document.getElementById("logModal").style.display = "none";
-  if (liveLogTimer) clearInterval(liveLogTimer);
+
+  // Clear the live log interval if it exists
+  if (liveLogTimer) {
+    clearInterval(liveLogTimer);
+    liveLogTimer = null;
+  }
+
+  // Reset live state
   isLive = false;
   document.getElementById("liveLogBtn").textContent = "▶ Live Logs";
+
+  // ✅ Also hide spinner if it’s still running
+  hideSpinner();
 }
 
 function downloadLogs() {
@@ -485,52 +557,10 @@ function downloadLogs() {
   a.click();
 }
 
-function submitMachineForm() {
-  const form = document.getElementById("addMachineForm");
-  const data = {
-    name: form.name.value.trim(),
-    host: form.host.value.trim(),
-    port: form.port.value.trim(),
-    user: form.user.value.trim(),
-    password: form.password.value
-  };
-
-  const existingTabs = Array.from(document.querySelectorAll(".tablinks"))
-    .map(btn => btn.textContent.trim());
-  if (existingTabs.includes(data.name)) {
-    showToast("⚠ A machine named '" + data.name + "' already exists.");
-    return false;
-  }
-
-  showSpinner();
-
-  fetch("/add_node", {
-    method: "POST",
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data)
-  })
-  .then(res => res.json())
-  .then(result => {
-    hideSpinner();
-    if (result.success) {
-      showToast("✅ Machine added!");
-      form.reset();
-      fetchData();
-      waitForTab(data.name);
-    } else {
-      showToast("❌ Error: " + result.message);
-    }
-  })
-  .catch(err => {
-    hideSpinner();
-    showToast("❌ Error: " + err);
-  });
-
-  return false;
-}
-
-fetchData();
+fetchData(currentMainTab === 'ports');
 </script>
+
+<!-- Modal -->
 <div id="logModal" style="display:none; position:fixed; top:10%; left:10%; width:80%; height:80%; background:#111; color:#eee; border:1px solid #444; padding:20px; overflow:auto; z-index:10000;">
   <div style="display:flex; justify-content:space-between; align-items:center;">
     <h3 style="margin:0;">Service Logs</h3>
