@@ -26,6 +26,53 @@ A self-hosted web dashboard to monitor and control `systemd` services across mul
 
 ---
 
+## 🚀 New Features (May 2025)
+
+### ✅ Unified Dashboard with Tabs
+
+Top-level tabs for:
+
+- **Services**
+- **Ports**
+- **+ New Machine**
+
+### 🛠️ Auto-Refresh Controls
+
+- Auto-refresh is **enabled by default on first load** (for services only)
+- Automatically **disables after 5 seconds**
+- User-selectable refresh interval: `60s`, `120s`, or `300s`
+- Manual **Refresh** and **Force Refresh Cache** buttons available
+
+### 🔁 Manual Port Fetching
+
+- **Ports tab does not auto-refresh** (by design)
+- Port data is fetched only when:
+  - You switch to the Ports tab for the first time
+  - You click the **Refresh** button while on the Ports tab
+
+### 🔍 Service & Port Filtering
+
+- **Services tab** filters by:
+  - `All`, `Active`, `Inactive`, `Failed`
+- **Ports tab** filters by:
+  - `All`, `TCP`, `UDP`
+
+### 📋 Logs Viewer with Live Mode
+
+- View `systemd` logs per service
+- Enable **Live Logs** (polls every 2s using `-n 10`)
+- Download logs as `.log` files
+- Closing the modal **automatically stops** live log polling
+
+### ➕ Add New Machines Easily
+
+- Use the **+ New Machine** tab to add nodes
+- Supports:
+  - IP, Port, Username, optional password
+- Automatically generates and deploys SSH keys
+- Persists new nodes in `nodes.json`
+
+
 ## ⚙️ Installation
 
 ### Option 1: Install with Script
