@@ -15,13 +15,17 @@ if ! command -v python3 &> /dev/null; then
     echo "[!] Python 3 not found. Attempting to install..."
     sudo apt update
     sudo apt install -y python3 python3-pip python3-venv
-    if ! command -v python3 &> /dev/null; then
-        echo "[ERROR] Failed to install Python 3. Please install it manually and run this script again."
-        exit 1
-    fi
-    echo "[+] Python 3 installed successfully."
 else
     echo "[+] Python 3 is already installed."
+fi
+
+# Step 1a. Ensure python3-venv is installed (even if Python is present)
+echo "[1a] Ensuring python3-venv is installed..."
+if ! dpkg -s python3-venv &> /dev/null; then
+    echo "[*] Installing python3-venv..."
+    sudo apt install -y python3-venv
+else
+    echo "[+] python3-venv is already installed."
 fi
 
 # Step 2. Create installation directory
@@ -100,4 +104,5 @@ elif command -v ifconfig &> /dev/null; then
 else
     LOCAL_IP="<unknown>"
 fi
+echo "✅ Installation complete."
 echo "👉 Visit your dashboard at http://$LOCAL_IP:8484"
