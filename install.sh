@@ -50,8 +50,8 @@ rm -rf "$VENV_DIR"
 python3 -m venv "$VENV_DIR"
 
 # Step 5. Install Python dependencies into virtual environment
-echo "[5] Installing Python packages (flask, paramiko)..."
-"$VENV_DIR/bin/pip" install --no-cache-dir flask paramiko
+echo "[5] Installing Python packages (flask, flask-socketio, eventlet, paramiko)..."
+"$VENV_DIR/bin/pip" install --no-cache-dir flask flask-socketio eventlet paramiko
 
 # Step 6. Ensure nodes.json exists
 echo "[6] Ensuring nodes.json exists..."
