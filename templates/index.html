@@ -291,7 +291,6 @@ function switchSubtab(type, nodeName) {
   requestAnimationFrame(applyFilters);
 }
 
-
 function renderSubtabs(type, nodeList) {
   const subtabs = document.getElementById(`${type}-subtabs`);
   subtabs.innerHTML = '';
@@ -509,11 +508,13 @@ let liveLogTimer = null;
 let currentLogHost = null;
 let currentLogService = null;
 let isLive = false;
+let previousLogLines = [];  // ✅ must be an array
 
 function viewLogs(host, service) {
   currentLogHost = host;
   currentLogService = service;
   isLive = false;
+  previousLogLines = [];
   document.getElementById("liveLogBtn").textContent = "▶ Live Logs";
   showSpinner();
   fetchLogs(false);
@@ -524,35 +525,57 @@ function fetchLogs(follow) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ host: currentLogHost, service: currentLogService, follow })
-  }).then(res => res.json())
-    .then(result => {
-      if (result.success) {
-        if (follow) {
-          // Append only new log lines
-          const pre = document.getElementById("logContent");
-          pre.textContent += result.logs;
-          pre.scrollTop = pre.scrollHeight; // auto-scroll
-        } else {
-          document.getElementById("logContent").textContent = result.logs;
-          document.getElementById("logModal").style.display = "block";
+  })
+  .then(res => res.json())
+  .then(result => {
+    if (result.success) {
+      const pre = document.getElementById("logContent");
+      const newLines = result.logs
+	  .trim()
+	  .split("\n")
+	  .filter(line => !/^-- Logs begin at .* --$/.test(line));  // 🔥 remove journal headers
+
+      if (follow) {
+        const freshLines = newLines.filter(line => !previousLogLines.includes(line));
+        if (freshLines.length > 0) {
+          pre.textContent += (pre.textContent.endsWith("\n") ? "" : "\n") + freshLines.join("\n");
+          pre.scrollTop = pre.scrollHeight;
+          previousLogLines = previousLogLines.concat(freshLines).slice(-200);
         }
       } else {
-        showToast("❌ Failed to fetch logs: " + result.message);
+        pre.textContent = result.logs;
+        pre.scrollTop = pre.scrollHeight;
+        previousLogLines = newLines.slice(-200);
+        document.getElementById("logModal").style.display = "block";
       }
-    }).catch(err => {
-      showToast("❌ Error fetching logs: " + err);
-    });
+    } else {
+      showToast("❌ Failed to fetch logs: " + result.message);
+    }
+  })
+  .catch(err => {
+    showToast("❌ Error fetching logs: " + err);
+  });
 }
 
 function toggleLiveLogs() {
   if (!isLive) {
     isLive = true;
     document.getElementById("liveLogBtn").textContent = "⏹ Stop";
-    liveLogTimer = setInterval(() => fetchLogs(true), 2000);
+
+    // Start streaming logs via WebSocket
+    socket.emit("start_logs", {
+      host: currentLogHost,
+      service: currentLogService
+    });
+
+    // Clear previous content
+    document.getElementById("logContent").textContent = '';
   } else {
     isLive = false;
     document.getElementById("liveLogBtn").textContent = "▶ Live Logs";
-    clearInterval(liveLogTimer);
+
+    // Stop log stream
+    socket.emit("stop_logs");
   }
 }
 
@@ -564,6 +587,9 @@ function closeLogModal() {
     clearInterval(liveLogTimer);
     liveLogTimer = null;
   }
+
+  // 🧠 Stop WebSocket stream if active
+  socket.emit("stop_logs");
 
   // Reset live state
   isLive = false;
@@ -644,5 +670,14 @@ fetchData();
   </div>
   <pre id="logContent" style="white-space:pre-wrap; background:#000; padding:10px; border:1px solid #333; height:90%; overflow:auto; margin-top:10px;"></pre>
 </div>
+<script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+<script>
+const socket = io();
+socket.on("log_line", (data) => {
+  const pre = document.getElementById("logContent");
+  pre.textContent += (pre.textContent.endsWith("\n") ? "" : "\n") + data.line;
+  pre.scrollTop = pre.scrollHeight;
+});
+</script>
 </body>
 </html>
