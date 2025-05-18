@@ -416,7 +416,7 @@ function manualRefresh() {
 }
 
 function scheduleRefresh(reset = false) {
-  const auto = document.getElementById("autoRefreshToggle").checked;
+  const auto = document.getElementById("autoRefreshToggle").checked = false;
   const interval = Math.max(60000, Math.min(300000, parseInt(document.getElementById("refreshInterval").value || "60000")));
   if (refreshTimer) clearTimeout(refreshTimer);
   if (auto && currentMainTab === 'services') {
