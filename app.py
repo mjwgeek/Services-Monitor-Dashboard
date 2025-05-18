@@ -1,662 +1,324 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Services Monitor Dashboard</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
-    body {
-      font-family: sans-serif;
-      background-color: #1e1e1e;
-      color: #eee;
-      margin: 0;
-      padding: 20px;
-    }
-    .header, .header-controls {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 10px;
-    }
-    .tabs, .subtabs {
-      overflow-x: auto;
-      white-space: nowrap;
-      background-color: #111;
-      margin-bottom: 10px;
-      display: flex;
-    }
-    .tabs button, .subtabs button {
-      background-color: inherit;
-      border: none;
-      cursor: pointer;
-      padding: 10px 20px;
-      color: #ccc;
-      font-size: 16px;
-    }
-    .tabs button.active, .subtabs button.active {
-      background-color: #444;
-      color: white;
-    }
-    .tabcontent {
-      display: none;
-      padding-top: 10px;
-    }
-    .tabcontent.active {
-      display: block;
-    }
-    .table-wrapper {
-      overflow-x: auto;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      table-layout: fixed;
-      min-width: 700px;
-    }
-    th, td {
-      padding: 6px 10px;
-      border-bottom: 1px solid #444;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      text-align: left;
-    }
-    tr:hover { background: #2a2a2a; }
-    tr.failed { background: #440000; }
+import eventlet
+eventlet.monkey_patch()
+from flask import Flask, request, jsonify, send_file, redirect, flash
+from flask_socketio import SocketIO, emit
+import subprocess
+import paramiko
+import os
+import json
+import threading
+from pathlib import Path
+from time import time
 
-    .status-active { color: #0f0; font-weight: bold; }
-    .status-failed { color: #f00; font-weight: bold; }
-    .status-inactive { color: #ff0; font-weight: bold; }
 
-    input, select, button {
-      background: #222;
-      color: #eee;
-      border: 1px solid #555;
-      border-radius: 4px;
-      padding: 4px 8px;
-      font-size: 14px;
-    }
+app = Flask(__name__)
+app.secret_key = "supersecret"
+socketio = SocketIO(app)
 
-    .button {
-      font-size: 12px;
-      margin-left: 2px;
-    }
+BASE_DIR = "/home/servicemonitor"
+NODES_FILE = os.path.join(BASE_DIR, "nodes.json")
+PREFETCH_SCRIPT = os.path.join(BASE_DIR, "prefetch_services.py")
+VENV_BIN = os.path.join(os.environ.get("VIRTUAL_ENV", "/home/servicemonitor/venv"), "bin", "python3")
 
-    .form-group {
-      margin-bottom: 10px;
-    }
+log_processes = {}
 
-    label {
-      display: block;
-      margin-bottom: 4px;
-      font-size: 14px;
-    }
+def load_nodes():
+    if not os.path.exists(NODES_FILE):
+        return []
+    with open(NODES_FILE) as f:
+        return json.load(f)
 
-    #searchInput {
-      width: 100%;
-      margin: 10px 0;
-    }
+def ssh_connect(node):
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    key_path = node.get("key_path", "/root/.ssh/id_rsa")
+    if node.get("use_key", True):
+        pkey = paramiko.RSAKey.from_private_key_file(key_path)
+        ssh.connect(node["host"], port=node["port"], username=node["user"], pkey=pkey, timeout=5)
+    else:
+        ssh.connect(node["host"], port=node["port"], username=node["user"], password=node.get("password"), timeout=5)
+    return ssh
 
-    .summary {
-      font-size: 14px;
-      margin: 6px 0;
-      color: #bbb;
-    }
+def parse_systemctl_output(output):
+    services = []
+    for line in output.strip().split("\n"):
+        parts = line.split()
+        if len(parts) >= 4:
+            name, load, active, sub = parts[:4]
+            if load == "not-found":
+                continue
+            services.append({'name': name, 'load': load, 'active': active, 'sub': sub})
+    return services
 
-    #loadingMessage {
-      text-align: center;
-      padding: 20px;
-      font-size: 18px;
-      color: #ddd;
-    }
+def parse_lsof(proto, lines):
+    seen = set()
+    entries = []
+    for line in lines[1:]:
+        parts = line.split()
+        if len(parts) < 9:
+            continue
+        process = parts[0]
+        pid = parts[1]
+        user = parts[2]
+        port_part = parts[-2]
+        if ':' not in port_part:
+            continue
+        port = port_part.split(":")[-1]
+        key = (proto, port, process)
+        if key in seen:
+            continue
+        seen.add(key)
+        entries.append({
+            "protocol": proto,
+            "port": port,
+            "process": process,
+            "pid": pid,
+            "user": user
+        })
+    return entries
 
-	#toast {
-	  position: fixed;
-	  top: 20px;
-	  right: 20px;
-	  background: #333;
-	  color: #fff;
-	  padding: 12px 20px;
-	  border-radius: 5px;
-	  box-shadow: 0 0 10px #000;
-	  z-index: 9999;
-	  display: none;
-	}
+def get_local_services():
+    out = subprocess.check_output([
+        "systemctl", "list-units", "--type=service", "--all", "--no-pager", "--no-legend"
+    ], universal_newlines=True)
+    return parse_systemctl_output(out)
 
-    #spinnerOverlay {
-      display: none;
-      position: fixed;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      background: rgba(0,0,0,0.6);
-      z-index: 9998;
-      align-items: center;
-      justify-content: center;
+def get_local_ports():
+    tcp = subprocess.run(["lsof", "-nP", "-iTCP", "-sTCP:LISTEN"], stdout=subprocess.PIPE, text=True).stdout.splitlines()
+    udp = subprocess.run(["lsof", "-nP", "-iUDP"], stdout=subprocess.PIPE, text=True).stdout.splitlines()
+    return parse_lsof("TCP", tcp) + parse_lsof("UDP", udp)
+
+def get_remote_services_and_ports(node):
+    ssh = ssh_connect(node)
+    combined = {"services": [], "ports": []}
+    try:
+        stdin, stdout, stderr = ssh.exec_command("systemctl list-units --type=service --all --no-pager --no-legend")
+        combined["services"] = parse_systemctl_output(stdout.read().decode())
+    except Exception:
+        combined["services"] = []
+    try:
+        seen = set()
+        ports = []
+        for proto in ["TCP", "UDP"]:
+            cmd = f"lsof -nP -i{proto}"
+            if proto == "TCP":
+                cmd += " -sTCP:LISTEN"
+            stdin, stdout, stderr = ssh.exec_command(cmd)
+            lines = stdout.read().decode().splitlines()
+            ports += parse_lsof(proto, lines)
+        combined["ports"] = ports
+    except Exception:
+        combined["ports"] = []
+    ssh.close()
+    return combined
+
+@app.route('/')
+def index():
+    return send_file(os.path.join(BASE_DIR, 'templates', 'index.html'))
+
+@app.route('/api/unified')
+def api_unified():
+    try:
+        local_services = get_local_services()
+        local_ports = get_local_ports()
+    except Exception:
+        local_services, local_ports = [], []
+
+    local_node = {
+        'node': 'LOCAL',
+        'host': '127.0.0.1',
+        'reachable': True,
+        'services': local_services,
+        'ports': local_ports
     }
 
-    .spinner {
-      border: 6px solid #444;
-      border-top: 6px solid #0f0;
-      border-radius: 50%;
-      width: 48px;
-      height: 48px;
-      animation: spin 1s linear infinite;
-    }
+    nodes = load_nodes()
+    remote_data = []
+    for node in nodes:
+        try:
+            combined = get_remote_services_and_ports(node)
+            remote_data.append({
+                "node": node["name"],
+                "host": node["host"],
+                "reachable": True,
+                "services": combined["services"],
+                "ports": combined["ports"]
+            })
+        except Exception:
+            remote_data.append({
+                "node": node["name"],
+                "host": node["host"],
+                "reachable": False,
+                "services": [],
+                "ports": []
+            })
 
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
-
-    @media (max-width: 600px) {
-      th, td { font-size: 13px; padding: 4px; }
-      .button { font-size: 10px; padding: 3px 5px; }
-    }
-  </style>
-</head>
-<body>
-
-<div class="header">
-  <h1>Services Monitor Dashboard</h1>
-  <div class="header-controls">
-    <span id="lastUpdated">Last updated: --:--:--</span>
-    <button onclick="manualRefresh()">Refresh</button>
-    <select id="refreshInterval">
-      <option value="60000" selected>60s</option>
-      <option value="120000">120s</option>
-      <option value="300000">300s</option>
-    </select>
-    <label>
-      <input type="checkbox" id="autoRefreshToggle">
-      Auto
-    </label>
-    <select id="statusFilter" onchange="applyFilters()">
-      <option value="all">All</option>
-      <option value="active">Active</option>
-      <option value="inactive">Inactive</option>
-      <option value="failed">Failed</option>
-      <option value="tcp">TCP</option>
-      <option value="udp">UDP</option>
-    </select>
-    <button onclick="forceRefresh()">🔁 Force Refresh Cache</button>
-  </div>
-</div>
-
-
-<!-- Removed search input box -->
-<!-- <input type="text" id="searchInput" placeholder="Filter services or ports..." oninput="applyFilters()"> -->
-<div id="loadingMessage">⏳ Loading data, please wait...</div>
-
-<!-- Tabs -->
-<div class="tabs">
-  <button class="tablink active" onclick="openMainTab(event, 'services')">Services</button>
-  <button class="tablink" onclick="openMainTab(event, 'ports')">Ports</button>
-  <button class="tablink" onclick="openMainTab(event, 'addMachine')">+ New Machine</button>
-</div>
-
-<div class="subtabs" id="services-subtabs"></div>
-<div class="tabcontent active" id="services-tabcontent"></div>
-
-<div class="subtabs" id="ports-subtabs" style="display:none;"></div>
-<div class="tabcontent" id="ports-tabcontent" style="display:none;"></div>
-
-<div class="tabcontent" id="addMachine">
-  <h2>Add New Machine</h2>
-  <form id="addMachineForm" onsubmit="return submitMachineForm();">
-    <div class="form-group">
-      <label for="name">Name:</label>
-      <input required type="text" name="name" id="name">
-    </div>
-    <div class="form-group">
-      <label for="host">IP Address:</label>
-      <input required type="text" name="host" id="host">
-    </div>
-    <div class="form-group">
-      <label for="port">SSH Port:</label>
-      <input required type="number" name="port" id="port" value="22">
-    </div>
-    <div class="form-group">
-      <label for="user">Username:</label>
-      <input required type="text" name="user" id="user" value="root">
-    </div>
-    <div class="form-group">
-      <label for="password">Password (optional):</label>
-      <input type="password" name="password" id="password">
-    </div>
-    <button type="submit">Add Machine</button>
-  </form>
-</div>
-
-<div id="toast">Status updated</div>
-<div id="spinnerOverlay"><div class="spinner"></div></div>
-<script>
-let servicesData = {};
-let portsData = {};
-let refreshTimer = null;
-let currentMainTab = 'services';
-let currentSubtab = {
-  services: 'LOCAL',
-  ports: 'LOCAL'
-};
-
-function openMainTab(evt, tab) {
-  document.querySelectorAll('.tablink').forEach(btn => btn.classList.remove('active'));
-  evt.currentTarget.classList.add('active');
-  currentMainTab = tab;
-
-  document.getElementById('services-tabcontent').style.display = tab === 'services' ? 'block' : 'none';
-  document.getElementById('services-subtabs').style.display = tab === 'services' ? 'flex' : 'none';
-
-  document.getElementById('ports-tabcontent').style.display = tab === 'ports' ? 'block' : 'none';
-  document.getElementById('ports-subtabs').style.display = tab === 'ports' ? 'flex' : 'none';
-
-  document.getElementById('addMachine').style.display = tab === 'addMachine' ? 'block' : 'none';
-
-  // ✅ Fetch ports only when entering the ports tab for the first time
-  if (tab === 'ports' && Object.keys(portsData).length === 0) {
-  showSpinner();
-  fetch('/api/unified')
-    .then(res => res.json())
-    .then(data => {
-      portsData = Object.fromEntries(data.ports.map(n => [n.node, n]));
-      renderSubtabs('ports', Object.keys(portsData));
-      switchSubtab('ports', currentSubtab.ports || 'LOCAL');
-      updateTimestamp(data.timestamp);
-      hideSpinner();
+    return jsonify({
+        "timestamp": int(time()),
+        "data": [local_node] + remote_data
     })
-    .catch(err => {
-      showToast("⚠ Failed to fetch ports");
-      hideSpinner();
-      });
-  }
-}
 
-function switchSubtab(type, nodeName) {
-  currentSubtab[type] = nodeName;
+@app.route('/add_node', methods=["POST"])
+def add_node():
+    data = request.get_json()
+    name = data.get('name')
+    host = data.get('host')
+    port = int(data.get('port', 22))
+    user = data.get('user')
+    password = data.get('password')
+    if not all([name, host, port, user]):
+        return jsonify({"success": False, "message": "Missing fields"})
+    key_file = f"/root/.ssh/id_rsa_{host.replace('.', '_')}"
+    pub_file = key_file + '.pub'
+    if not Path(key_file).exists():
+        subprocess.run(["ssh-keygen", "-t", "rsa", "-b", "2048", "-f", key_file, "-N", ""], check=True)
+    if password:
+        try:
+            pubkey = Path(pub_file).read_text().strip()
+            ssh = paramiko.SSHClient()
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            ssh.connect(hostname=host, port=port, username=user, password=password, timeout=10)
+            ssh.exec_command("mkdir -p ~/.ssh && chmod 700 ~/.ssh")
+            ssh.exec_command(f'echo "{pubkey}" >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys')
+            ssh.close()
+        except Exception as e:
+            return jsonify({"success": False, "message": f"Key copy failed: {e}"})
+    node_entry = {"name": name, "host": host, "port": port, "user": user, "use_key": True, "key_path": key_file}
+    nodes = load_nodes()
+    nodes.append(node_entry)
+    with open(NODES_FILE, "w") as f:
+        json.dump(nodes, f, indent=2)
+    threading.Thread(target=lambda: subprocess.run([VENV_BIN, PREFETCH_SCRIPT], cwd=BASE_DIR), daemon=True).start()
+    return jsonify({"success": True, "message": "Machine added successfully."})
 
-  document.querySelectorAll(`#${type}-subtabs button`).forEach(btn => btn.classList.remove('active'));
-  document.getElementById(`${type}-subtab-${nodeName}`)?.classList.add('active');
+@app.route('/force-refresh', methods=["POST"])
+def force_refresh():
+    try:
+        subprocess.run([VENV_BIN, PREFETCH_SCRIPT], check=True)
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
 
-  const tabcontent = document.getElementById(`${type}-tabcontent`);
-  tabcontent.innerHTML = '';
+@app.route('/action', methods=["POST"])
+def action():
+    host = request.form['host']
+    service = request.form['service']
+    act = request.form['action']
+    nodes = load_nodes()
+    if host == 'LOCAL':
+        subprocess.run(['systemctl', act, service], check=False)
+    else:
+        node = next((n for n in nodes if n['name'] == host), None)
+        if not node:
+            flash(f"Host '{host}' not found.")
+            return redirect('/')
+        try:
+            ssh = ssh_connect(node)
+            ssh.exec_command(f"systemctl {act} {service}")
+            ssh.close()
+        except Exception as e:
+            flash(f"SSH error: {e}")
+            return redirect('/')
+    flash(f"{act.capitalize()} sent to {service} on {host}")
+    return redirect('/')
 
-  if (type === 'services') {
-    renderServicesPanel(nodeName);
-  } else if (type === 'ports') {
-    renderPortsPanel(nodeName);
-  }
+@app.route('/logs', methods=["POST"])
+def logs():
+    try:
+        data = request.get_json()
+        host = data.get("host")
+        service = data.get("service")
+        follow = data.get("follow", False)
+        nodes = load_nodes()
+        if host == "LOCAL":
+            cmd = ["journalctl", "-u", service, "--no-pager", "-n", "10" if follow else "50"]
+            output = subprocess.check_output(cmd, stderr=subprocess.STDOUT, timeout=2, universal_newlines=True)
+        else:
+            node = next((n for n in nodes if n["name"] == host), None)
+            if not node:
+                return jsonify({"success": False, "message": f"Node '{host}' not found"})
+            ssh = ssh_connect(node)
+            cmd = f"journalctl -u {service} --no-pager -n {'10' if follow else '50'}"
+            stdin, stdout, stderr = ssh.exec_command(cmd)
+            output = stdout.read().decode() or stderr.read().decode()
+            ssh.close()
+        return jsonify({"success": True, "logs": output})
+    except subprocess.TimeoutExpired:
+        return jsonify({"success": True, "logs": ""})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
 
-  // Delay filter application until table rows are fully added
-  requestAnimationFrame(applyFilters);
-}
+@socketio.on("start_logs")
+def start_logs(data):
+    service = data.get("service")
+    host = data.get("host")
+    sid = request.sid
 
+    if not service or not host:
+        emit("log_line", {"line": "❌ Missing host or service"})
+        return
 
-function renderSubtabs(type, nodeList) {
-  const subtabs = document.getElementById(`${type}-subtabs`);
-  subtabs.innerHTML = '';
-  nodeList.forEach(name => {
-    const btn = document.createElement('button');
-    btn.textContent = name;
-    btn.id = `${type}-subtab-${name}`;
-    btn.onclick = () => switchSubtab(type, name);
-    if (name === currentSubtab[type]) btn.classList.add('active');
-    subtabs.appendChild(btn);
-  });
-}
+    def stream_local():
+        try:
+            proc = subprocess.Popen(
+                ["journalctl", "-u", service, "-f", "--no-pager"],
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+            )
+            log_processes[sid] = proc
+            for line in proc.stdout:
+                socketio.emit("log_line", {"line": line.strip()}, to=sid)
+        except Exception as e:
+            socketio.emit("log_line", {"line": f"❌ Local log error: {e}"}, to=sid)
 
-function renderServicesPanel(name) {
-  const tab = document.getElementById('services-tabcontent');
-  const node = servicesData[name];
-  if (!node) return;
-  const wrapper = document.createElement('div');
-  wrapper.className = 'table-wrapper';
+    def stream_remote(node):
+        try:
+            ssh = ssh_connect(node)
+            channel = ssh.get_transport().open_session()
+            channel.settimeout(10)
+            channel.exec_command(f"journalctl -u {service} -f --no-pager")
+            log_processes[sid] = channel
 
-  const table = document.createElement('table');
-  table.innerHTML = `
-    <thead>
-      <tr><th>Name</th><th>Load</th><th>Active</th><th>Sub</th><th>Actions</th></tr>
-    </thead>`;
-  const tbody = document.createElement('tbody');
+            socketio.emit("log_line", {"line": f"🔌 Connected to {node['name']} ({node['host']})"}, to=sid)
 
-  node.services.forEach(service => {
-    const tr = document.createElement('tr');
-    if (service.active === 'failed') tr.classList.add('failed');
-    tr.innerHTML = `
-      <td>${service.name}</td>
-      <td>${service.load}</td>
-      <td class="status-${service.active}">${service.active}</td>
-      <td>${service.sub}</td>
-      <td>
-        <form method="post" action="/action" style="display:inline;">
-          <input type="hidden" name="host" value="${name}">
-          <input type="hidden" name="service" value="${service.name}">
-          <button class="button" name="action" value="restart">Restart</button>
-          <button class="button" name="action" value="stop">Stop</button>
-          <button class="button" name="action" value="start">Start</button>
-        </form>
-        <button class="button" onclick="viewLogs('${name}', '${service.name}')">Logs</button>
-      </td>`;
-    tbody.appendChild(tr);
-  });
+            while True:
+                if channel.recv_ready():
+                    chunk = channel.recv(4096).decode(errors="ignore")
+                    lines = chunk.splitlines()
+                    for line in lines:
+                        socketio.emit("log_line", {"line": line}, to=sid)
 
-  table.appendChild(tbody);
-  wrapper.appendChild(table);
-  tab.appendChild(wrapper);
-}
+                elif channel.exit_status_ready():
+                    break
 
-function renderPortsPanel(name) {
-  const tab = document.getElementById('ports-tabcontent');
-  const node = portsData[name];
-  if (!node) return;
-  const wrapper = document.createElement('div');
-  wrapper.className = 'table-wrapper';
+                eventlet.sleep(1)
 
-  const table = document.createElement('table');
-  table.innerHTML = `
-    <thead>
-      <tr><th>Protocol</th><th>Port</th><th>Process</th><th>PID</th></tr>
-    </thead>`;
-  const tbody = document.createElement('tbody');
+            channel.close()
+            ssh.close()
 
-  node.ports.forEach(port => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${port.protocol}</td>
-      <td>${port.port}</td>
-      <td>${port.process}</td>
-      <td>${port.pid}</td>`;
-    tbody.appendChild(tr);
-  });
+        except Exception as e:
+            socketio.emit("log_line", {"line": f"❌ SSH error: {e}"}, to=sid)
 
-  table.appendChild(tbody);
-  wrapper.appendChild(table);
-  tab.appendChild(wrapper);
-}
+    if host == "LOCAL":
+        eventlet.spawn(stream_local)
+    else:
+        node = next((n for n in load_nodes() if n["name"] == host), None)
+        if not node:
+            emit("log_line", {"line": f"❌ Unknown node '{host}'"})
+            return
+        eventlet.spawn(lambda: stream_remote(node))
 
-function fetchData() {
-  showSpinner();
-  fetch('/api/unified')
-    .then(res => res.json())
-    .then(data => {
-      if (!data.data) throw new Error("Invalid response structure");
+@socketio.on("disconnect")
+def disconnect(sid):
+    print(f"[SocketIO] Client disconnected: {sid}")
+    proc = log_processes.pop(sid, None)
+    if proc:
+        try:
+            if hasattr(proc, "terminate"):
+                proc.terminate()
+            elif hasattr(proc, "close"):
+                proc.close()
+        except Exception as e:
+            print(f"[WARN] Failed to clean up logs for {sid}: {e}")
 
-      servicesData = Object.fromEntries(data.data.map(n => [n.node, n]));
-      portsData = Object.fromEntries(data.data.map(n => [n.node, n]));
-
-      const nodeNames = Object.keys(servicesData);
-      renderSubtabs('services', nodeNames);
-      renderSubtabs('ports', nodeNames);
-
-      switchSubtab('services', currentSubtab.services);
-      switchSubtab('ports', currentSubtab.ports);
-
-      updateTimestamp(data.timestamp);
-      document.getElementById("loadingMessage").style.display = "none";
-      hideSpinner();
-      scheduleRefresh();
-    })
-    .catch(err => {
-      showToast("⚠ Failed to fetch data: " + err);
-      hideSpinner();
-    });
-}
-
-function manualRefresh() {
-  showSpinner();
-  fetch('/api/unified')
-    .then(res => res.json())
-    .then(data => {
-      if (!data.data) throw new Error("Invalid response structure");
-
-      servicesData = Object.fromEntries(data.data.map(n => [n.node, n]));
-      portsData = Object.fromEntries(data.data.map(n => [n.node, n]));
-
-      const nodeNames = Object.keys(servicesData);
-      renderSubtabs('services', nodeNames);
-      renderSubtabs('ports', nodeNames);
-
-      switchSubtab(currentMainTab, currentSubtab[currentMainTab]);
-      updateTimestamp(data.timestamp);
-      hideSpinner();
-    })
-    .catch(err => {
-      showToast("⚠ Manual refresh failed: " + err);
-      hideSpinner();
-    });
-}
-
-function scheduleRefresh(reset = false) {
-  const auto = document.getElementById("autoRefreshToggle").checked;
-  const interval = Math.max(
-    60000,
-    Math.min(300000, parseInt(document.getElementById("refreshInterval").value || "60000"))
-  );
-
-  // Always clear the existing timer
-  if (refreshTimer) {
-    clearTimeout(refreshTimer);
-    refreshTimer = null;
-  }
-
-  if (auto && currentMainTab === 'services') {
-    refreshTimer = setTimeout(() => fetchData(), interval);
-    if (reset) showToast(`🔁 Auto-refresh set to ${interval / 60000} min`);
-  } else if (reset) {
-    showToast("⏹ Auto-refresh is off");
-  }
-}
-
-// ✅ Enable auto-refresh on first load
-document.getElementById("autoRefreshToggle").checked = true;
-fetchData();
-
-// ⏹ Disable auto-refresh after 5 seconds
-setTimeout(() => {
-  document.getElementById("autoRefreshToggle").checked = false;
-  scheduleRefresh(); // Cancel the timer if running
-  showToast("⏹ Auto-refresh disabled after first load");
-}, 5000);
-
-// ✅ Add listener once
-document.getElementById("autoRefreshToggle").addEventListener("change", () => {
-  scheduleRefresh(true);  // Reset or cancel the timer when toggle changes
-});
-
-function applyFilters() {
-  const statusFilter = document.getElementById("statusFilter")?.value || "all";
-  const tabType = currentMainTab;
-  const tableWrapper = document.getElementById(`${tabType}-tabcontent`);
-  if (!tableWrapper) return;
-
-  tableWrapper.querySelectorAll("tbody tr").forEach(row => {
-    if (tabType === 'services') {
-      const status = row.querySelector('td:nth-child(3)')?.textContent?.trim()?.toLowerCase();
-      row.style.display = (statusFilter === 'all' || status === statusFilter) ? '' : 'none';
-    } else if (tabType === 'ports') {
-      const proto = row.querySelector('td:nth-child(1)')?.textContent?.trim()?.toLowerCase();
-      row.style.display = (statusFilter === 'all' || proto === statusFilter) ? '' : 'none';
-    }
-  });
-}
-
-function updateTimestamp(ts) {
-  const span = document.getElementById("lastUpdated");
-  if (!ts) return span.innerText = "Last updated: --:--:--";
-  const date = new Date(ts * 1000);
-  span.innerText = "Last updated: " + date.toLocaleString();
-}
-
-function showToast(msg) {
-  const toast = document.getElementById("toast");
-  toast.textContent = msg;
-  toast.style.display = "block";
-  toast.style.opacity = 1;
-  setTimeout(() => {
-    toast.style.opacity = 0;
-    setTimeout(() => toast.style.display = "none", 1000);
-  }, 4000);
-}
-
-function showSpinner() {
-  document.getElementById("spinnerOverlay").style.display = "flex";
-}
-function hideSpinner() {
-  document.getElementById("spinnerOverlay").style.display = "none";
-}
-
-let liveLogTimer = null;
-let currentLogHost = null;
-let currentLogService = null;
-let isLive = false;
-let previousLogLines = [];  // ✅ must be an array
-
-function viewLogs(host, service) {
-  currentLogHost = host;
-  currentLogService = service;
-  isLive = false;
-  previousLogLines = [];
-  document.getElementById("liveLogBtn").textContent = "▶ Live Logs";
-  showSpinner();
-  fetchLogs(false);
-}
-
-function fetchLogs(follow) {
-  fetch("/logs", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ host: currentLogHost, service: currentLogService, follow })
-  })
-  .then(res => res.json())
-  .then(result => {
-    if (result.success) {
-      const pre = document.getElementById("logContent");
-      const newLines = result.logs
-	  .trim()
-	  .split("\n")
-	  .filter(line => !/^-- Logs begin at .* --$/.test(line));  // 🔥 remove journal headers
-
-      if (follow) {
-        const freshLines = newLines.filter(line => !previousLogLines.includes(line));
-        if (freshLines.length > 0) {
-          pre.textContent += (pre.textContent.endsWith("\n") ? "" : "\n") + freshLines.join("\n");
-          pre.scrollTop = pre.scrollHeight;
-          previousLogLines = previousLogLines.concat(freshLines).slice(-200);
-        }
-      } else {
-        pre.textContent = result.logs;
-        pre.scrollTop = pre.scrollHeight;
-        previousLogLines = newLines.slice(-200);
-        document.getElementById("logModal").style.display = "block";
-      }
-    } else {
-      showToast("❌ Failed to fetch logs: " + result.message);
-    }
-  })
-  .catch(err => {
-    showToast("❌ Error fetching logs: " + err);
-  });
-}
-
-function toggleLiveLogs() {
-  if (!isLive) {
-    isLive = true;
-    document.getElementById("liveLogBtn").textContent = "⏹ Stop";
-    liveLogTimer = setInterval(() => fetchLogs(true), 2000);
-  } else {
-    isLive = false;
-    document.getElementById("liveLogBtn").textContent = "▶ Live Logs";
-    clearInterval(liveLogTimer);
-  }
-}
-
-function closeLogModal() {
-  document.getElementById("logModal").style.display = "none";
-
-  // Clear the live log interval if it exists
-  if (liveLogTimer) {
-    clearInterval(liveLogTimer);
-    liveLogTimer = null;
-  }
-
-  // Reset live state
-  isLive = false;
-  document.getElementById("liveLogBtn").textContent = "▶ Live Logs";
-
-  // ✅ Also hide spinner if it’s still running
-  hideSpinner();
-}
-
-function downloadLogs() {
-  const blob = new Blob([document.getElementById("logContent").textContent], { type: "text/plain" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = `${currentLogService || "service"}.log`;
-  a.click();
-}
-
-function submitMachineForm() {
-  const form = document.getElementById("addMachineForm");
-  const data = {
-    name: form.name.value.trim(),
-    host: form.host.value.trim(),
-    port: form.port.value.trim(),
-    user: form.user.value.trim(),
-    password: form.password.value
-  };
-
-  showSpinner();
-
-  fetch("/add_node", {
-    method: "POST",
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data)
-  })
-  .then(res => res.json())
-  .then(result => {
-    hideSpinner();
-    if (result.success) {
-      showToast("✅ Machine added!");
-      form.reset();
-      fetchData();  // Refresh tabs
-      openMainTab({ currentTarget: document.querySelector('.tablink:first-child') }, 'services');
-    } else {
-      showToast("❌ " + result.message);
-    }
-  })
-  .catch(err => {
-    hideSpinner();
-    showToast("❌ Error: " + err);
-  });
-
-  return false; // Prevent form submission from reloading page
-}
-
-function forceRefresh() {
-  showToast("Refreshing cache...");
-  fetch("/force-refresh", { method: "POST" })
-    .then(res => res.json())
-    .then(json => {
-      showToast(json.success ? "✅ Cache refreshed" : "⚠ " + json.message);
-      fetchData(currentMainTab === 'ports'); // refresh current tab
-    })
-    .catch(err => showToast("⚠ Refresh failed: " + err));
-}
-
-fetchData();
-</script>
-
-<!-- Modal -->
-<div id="logModal" style="display:none; position:fixed; top:10%; left:10%; width:80%; height:80%; background:#111; color:#eee; border:1px solid #444; padding:20px; overflow:auto; z-index:10000;">
-  <div style="display:flex; justify-content:space-between; align-items:center;">
-    <h3 style="margin:0;">Service Logs</h3>
-    <div>
-      <button onclick="downloadLogs()" class="button">⬇ Download</button>
-      <button onclick="toggleLiveLogs()" class="button" id="liveLogBtn">▶ Live Logs</button>
-      <button onclick="closeLogModal()" class="button">✖ Close</button>
-    </div>
-  </div>
-  <pre id="logContent" style="white-space:pre-wrap; background:#000; padding:10px; border:1px solid #333; height:90%; overflow:auto; margin-top:10px;"></pre>
-</div>
-</body>
-</html>
+if __name__ == "__main__":
+    socketio.run(app, host="0.0.0.0", port=8484)
