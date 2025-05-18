@@ -51,7 +51,11 @@ python3 -m venv "$VENV_DIR"
 
 # Step 5. Install Python dependencies into virtual environment
 echo "[5] Installing Python packages (flask, flask-socketio, eventlet, paramiko)..."
-"$VENV_DIR/bin/pip" install --no-cache-dir flask flask-socketio eventlet paramiko
+"$VENV_DIR/bin/pip" install --no-cache-dir \
+    flask \
+    flask-socketio \
+    eventlet \
+    paramiko
 
 # Step 6. Ensure nodes.json exists
 echo "[6] Ensuring nodes.json exists..."
@@ -61,7 +65,6 @@ if [ -f "$NODES_FILE" ]; then
     cp "$NODES_FILE" "$NODES_FILE.bak"
     echo "[!] nodes.json already exists. Skipping creation."
 else
-    echo "[6] Creating empty nodes.json..."
     echo "[]" > "$NODES_FILE"
     echo "[+] Created nodes.json"
 fi
@@ -100,5 +103,6 @@ elif command -v ifconfig &> /dev/null; then
 else
     LOCAL_IP="<unknown>"
 fi
+
 echo "✅ Installation complete."
 echo "👉 Visit your dashboard at http://$LOCAL_IP:8484"
