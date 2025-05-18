@@ -112,18 +112,18 @@
       color: #ddd;
     }
 
-    #toast {
-      position: fixed;
-      bottom: 20px;
-      right: 20px;
-      background: #333;
-      color: #fff;
-      padding: 12px 20px;
-      border-radius: 5px;
-      box-shadow: 0 0 10px #000;
-      z-index: 9999;
-      display: none;
-    }
+	#toast {
+	  position: fixed;
+	  top: 20px;
+	  right: 20px;
+	  background: #333;
+	  color: #fff;
+	  padding: 12px 20px;
+	  border-radius: 5px;
+	  box-shadow: 0 0 10px #000;
+	  z-index: 9999;
+	  display: none;
+	}
 
     #spinnerOverlay {
       display: none;
@@ -379,6 +379,8 @@ function fetchData() {
   fetch('/api/unified')
     .then(res => res.json())
     .then(data => {
+      if (!data.data) throw new Error("Invalid response structure");
+
       servicesData = Object.fromEntries(data.data.map(n => [n.node, n]));
       portsData = Object.fromEntries(data.data.map(n => [n.node, n]));
 
@@ -405,6 +407,8 @@ function manualRefresh() {
   fetch('/api/unified')
     .then(res => res.json())
     .then(data => {
+      if (!data.data) throw new Error("Invalid response structure");
+
       servicesData = Object.fromEntries(data.data.map(n => [n.node, n]));
       portsData = Object.fromEntries(data.data.map(n => [n.node, n]));
 
@@ -422,30 +426,42 @@ function manualRefresh() {
     });
 }
 
-
 function scheduleRefresh(reset = false) {
-  const auto = document.getElementById("autoRefreshToggle").checked = false;
-  const interval = Math.max(60000, Math.min(300000, parseInt(document.getElementById("refreshInterval").value || "60000")));
-  if (refreshTimer) clearTimeout(refreshTimer);
-  if (auto && currentMainTab === 'services') {
-    refreshTimer = setTimeout(() => fetchData(false), interval);
-  }
-  if (reset) showToast(`🔁 Auto-refresh set to ${interval / 60000} min`);
-}
+  const auto = document.getElementById("autoRefreshToggle").checked;
+  const interval = Math.max(
+    60000,
+    Math.min(300000, parseInt(document.getElementById("refreshInterval").value || "60000"))
+  );
 
-// Start with auto-refresh ON for first load
-document.getElementById("autoRefreshToggle").checked = true;
-fetchData(currentMainTab === 'ports');
-
-// After first fetch, disable auto-refresh
-setTimeout(() => {
-  document.getElementById("autoRefreshToggle").checked = false;
+  // Always clear the existing timer
   if (refreshTimer) {
     clearTimeout(refreshTimer);
     refreshTimer = null;
-    showToast("⏹ Auto-refresh disabled after first load");
   }
-}, 5000); // adjust time if needed
+
+  if (auto && currentMainTab === 'services') {
+    refreshTimer = setTimeout(() => fetchData(), interval);
+    if (reset) showToast(`🔁 Auto-refresh set to ${interval / 60000} min`);
+  } else if (reset) {
+    showToast("⏹ Auto-refresh is off");
+  }
+}
+
+// ✅ Enable auto-refresh on first load
+document.getElementById("autoRefreshToggle").checked = true;
+fetchData();
+
+// ⏹ Disable auto-refresh after 5 seconds
+setTimeout(() => {
+  document.getElementById("autoRefreshToggle").checked = false;
+  scheduleRefresh(); // Cancel the timer if running
+  showToast("⏹ Auto-refresh disabled after first load");
+}, 5000);
+
+// ✅ Add listener once
+document.getElementById("autoRefreshToggle").addEventListener("change", () => {
+  scheduleRefresh(true);  // Reset or cancel the timer when toggle changes
+});
 
 function applyFilters() {
   const statusFilter = document.getElementById("statusFilter")?.value || "all";
