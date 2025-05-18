@@ -9,12 +9,11 @@ echo "🔄 Updating Service Monitor Dashboard..."
 
 cd "$INSTALL_DIR"
 
-# Step 1: Detect changes
+# Step 1: Detect local changes
 if ! git diff-index --quiet HEAD; then
     echo "📁 Local changes detected. Creating backup at $BACKUP_DIR"
     mkdir -p "$BACKUP_DIR"
-    cp -r app.py templates "$BACKUP_DIR/"
-    
+    cp -r app.py templates nodes.json "$BACKUP_DIR/" 2>/dev/null || true
     echo "⚠️  Resetting repo to latest state"
     git reset --hard
 fi
@@ -23,19 +22,23 @@ fi
 echo "[1] Pulling latest changes..."
 git pull
 
-# Step 3: Ensure virtualenv
+# Step 3: Ensure virtual environment
 if [ ! -d "$VENV_DIR" ]; then
     echo "[2] Creating virtual environment..."
     python3 -m venv "$VENV_DIR"
 fi
 source "$VENV_DIR/bin/activate"
 
-# Step 4: Install deps
-echo "[3] Installing dependencies..."
-"$VENV_DIR/bin/pip" install --no-cache-dir flask paramiko
+# Step 4: Install updated Python dependencies
+echo "[3] Installing/updating dependencies..."
+"$VENV_DIR/bin/pip" install --no-cache-dir \
+    flask \
+    flask-socketio \
+    eventlet \
+    paramiko
 
-# Step 5: Restart
-echo "[4] Restarting systemd service..."
+# Step 5: Restart the systemd service
+echo "[4] Restarting servicemonitor.service..."
 sudo systemctl restart servicemonitor.service
 
 echo "✅ Update complete!"
