@@ -255,26 +255,22 @@ function openMainTab(evt, tab) {
 
   // ✅ Fetch ports only when entering the ports tab for the first time
   if (tab === 'ports' && Object.keys(portsData).length === 0) {
-    showSpinner();
-    document.getElementById("loadingMessage").style.display = "block";
-
-    fetch('/api/ports')
-      .then(res => res.json())
-      .then(data => {
-        portsData = Object.fromEntries(data.map(n => [n.node, n]));
-        renderSubtabs('ports', Object.keys(portsData));
-        switchSubtab('ports', currentSubtab.ports || 'LOCAL');
-        document.getElementById("loadingMessage").style.display = "none";
-        hideSpinner();
-      })
-      .catch(err => {
-        showToast("⚠ Failed to fetch ports");
-        document.getElementById("loadingMessage").style.display = "none";
-        hideSpinner();
+  showSpinner();
+  fetch('/api/unified')
+    .then(res => res.json())
+    .then(data => {
+      portsData = Object.fromEntries(data.ports.map(n => [n.node, n]));
+      renderSubtabs('ports', Object.keys(portsData));
+      switchSubtab('ports', currentSubtab.ports || 'LOCAL');
+      updateTimestamp(data.timestamp);
+      hideSpinner();
+    })
+    .catch(err => {
+      showToast("⚠ Failed to fetch ports");
+      hideSpinner();
       });
   }
 }
-
 
 function switchSubtab(type, nodeName) {
   currentSubtab[type] = nodeName;
@@ -378,42 +374,54 @@ function renderPortsPanel(name) {
   tab.appendChild(wrapper);
 }
 
-function fetchData(forcePorts = false) {
+function fetchData() {
   showSpinner();
-  const fetches = [
-    fetch('/api/services').then(res => res.json())
-  ];
-  if (forcePorts) {
-    fetches.push(fetch('/api/ports').then(res => res.json()));
-  } else {
-    fetches.push(Promise.resolve([]));
-  }
+  fetch('/api/unified')
+    .then(res => res.json())
+    .then(data => {
+      servicesData = Object.fromEntries(data.data.map(n => [n.node, n]));
+      portsData = Object.fromEntries(data.data.map(n => [n.node, n]));
 
-  Promise.all(fetches).then(([servicesResp, portsResp]) => {
-    servicesData = Object.fromEntries(servicesResp.data.map(n => [n.node, n]));
-    if (portsResp.length > 0) {
-      portsData = Object.fromEntries(portsResp.map(n => [n.node, n]));
-    }
+      const nodeNames = Object.keys(servicesData);
+      renderSubtabs('services', nodeNames);
+      renderSubtabs('ports', nodeNames);
 
-    const nodeNames = Object.keys(servicesData);
-    renderSubtabs('services', nodeNames);
-    renderSubtabs('ports', nodeNames);
-    switchSubtab('services', currentSubtab.services);
-    switchSubtab('ports', currentSubtab.ports);
-    document.getElementById("loadingMessage").style.display = "none";
-    updateTimestamp(servicesResp.timestamp);
-    scheduleRefresh();
-    hideSpinner();
-  });
+      switchSubtab('services', currentSubtab.services);
+      switchSubtab('ports', currentSubtab.ports);
+
+      updateTimestamp(data.timestamp);
+      document.getElementById("loadingMessage").style.display = "none";
+      hideSpinner();
+      scheduleRefresh();
+    })
+    .catch(err => {
+      showToast("⚠ Failed to fetch data: " + err);
+      hideSpinner();
+    });
 }
 
 function manualRefresh() {
-  if (currentMainTab === 'services') {
-    fetchData(false);
-  } else if (currentMainTab === 'ports') {
-    fetchData(true);
-  }
+  showSpinner();
+  fetch('/api/unified')
+    .then(res => res.json())
+    .then(data => {
+      servicesData = Object.fromEntries(data.data.map(n => [n.node, n]));
+      portsData = Object.fromEntries(data.data.map(n => [n.node, n]));
+
+      const nodeNames = Object.keys(servicesData);
+      renderSubtabs('services', nodeNames);
+      renderSubtabs('ports', nodeNames);
+
+      switchSubtab(currentMainTab, currentSubtab[currentMainTab]);
+      updateTimestamp(data.timestamp);
+      hideSpinner();
+    })
+    .catch(err => {
+      showToast("⚠ Manual refresh failed: " + err);
+      hideSpinner();
+    });
 }
+
 
 function scheduleRefresh(reset = false) {
   const auto = document.getElementById("autoRefreshToggle").checked = false;
@@ -605,7 +613,7 @@ function forceRefresh() {
     .catch(err => showToast("⚠ Refresh failed: " + err));
 }
 
-fetchData(currentMainTab === 'ports');
+fetchData();
 </script>
 
 <!-- Modal -->
