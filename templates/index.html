@@ -557,6 +557,54 @@ function downloadLogs() {
   a.click();
 }
 
+function submitMachineForm() {
+  const form = document.getElementById("addMachineForm");
+  const data = {
+    name: form.name.value.trim(),
+    host: form.host.value.trim(),
+    port: form.port.value.trim(),
+    user: form.user.value.trim(),
+    password: form.password.value
+  };
+
+  showSpinner();
+
+  fetch("/add_node", {
+    method: "POST",
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  })
+  .then(res => res.json())
+  .then(result => {
+    hideSpinner();
+    if (result.success) {
+      showToast("✅ Machine added!");
+      form.reset();
+      fetchData();  // Refresh tabs
+      openMainTab({ currentTarget: document.querySelector('.tablink:first-child') }, 'services');
+    } else {
+      showToast("❌ " + result.message);
+    }
+  })
+  .catch(err => {
+    hideSpinner();
+    showToast("❌ Error: " + err);
+  });
+
+  return false; // Prevent form submission from reloading page
+}
+
+function forceRefresh() {
+  showToast("Refreshing cache...");
+  fetch("/force-refresh", { method: "POST" })
+    .then(res => res.json())
+    .then(json => {
+      showToast(json.success ? "✅ Cache refreshed" : "⚠ " + json.message);
+      fetchData(currentMainTab === 'ports'); // refresh current tab
+    })
+    .catch(err => showToast("⚠ Refresh failed: " + err));
+}
+
 fetchData(currentMainTab === 'ports');
 </script>
 
