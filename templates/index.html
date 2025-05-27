@@ -244,6 +244,7 @@ function openMainTab(evt, tab) {
   document.querySelectorAll('.tablink').forEach(btn => btn.classList.remove('active'));
   evt.currentTarget.classList.add('active');
   currentMainTab = tab;
+  localStorage.setItem("activeMainTab", tab);
 
   document.getElementById('services-tabcontent').style.display = tab === 'services' ? 'block' : 'none';
   document.getElementById('services-subtabs').style.display = tab === 'services' ? 'flex' : 'none';
@@ -274,6 +275,7 @@ function openMainTab(evt, tab) {
 
 function switchSubtab(type, nodeName) {
   currentSubtab[type] = nodeName;
+  localStorage.setItem(`activeSubtab_${type}`, nodeName);
 
   document.querySelectorAll(`#${type}-subtabs button`).forEach(btn => btn.classList.remove('active'));
   document.getElementById(`${type}-subtab-${nodeName}`)?.classList.add('active');
@@ -321,28 +323,51 @@ function renderServicesPanel(name) {
   node.services.forEach(service => {
     const tr = document.createElement('tr');
     if (service.active === 'failed') tr.classList.add('failed');
+
     tr.innerHTML = `
       <td>${service.name}</td>
       <td>${service.load}</td>
       <td class="status-${service.active}">${service.active}</td>
       <td>${service.sub}</td>
       <td>
-        <form method="post" action="/action" style="display:inline;">
-          <input type="hidden" name="host" value="${name}">
-          <input type="hidden" name="service" value="${service.name}">
-          <button class="button" name="action" value="restart">Restart</button>
-          <button class="button" name="action" value="stop">Stop</button>
-          <button class="button" name="action" value="start">Start</button>
-        </form>
+        <button class="button" onclick="handleServiceAction(event, '${name}', '${service.name}', 'restart')">Restart</button>
+        <button class="button" onclick="handleServiceAction(event, '${name}', '${service.name}', 'stop')">Stop</button>
+        <button class="button" onclick="handleServiceAction(event, '${name}', '${service.name}', 'start')">Start</button>
         <button class="button" onclick="viewLogs('${name}', '${service.name}')">Logs</button>
       </td>`;
+
     tbody.appendChild(tr);
   });
 
   table.appendChild(tbody);
   wrapper.appendChild(table);
   tab.appendChild(wrapper);
+  interceptServiceActions();
 }
+
+function handleServiceAction(event, host, service, action) {
+  event.preventDefault();
+  showSpinner();
+
+  fetch('/action', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ host, service, action })
+  })
+  .then(res => res.json())
+  .then(json => {
+    hideSpinner();
+    showToast(json.message || "Action complete");
+    if (json.success) {
+      manualRefresh(); // optional: reload data from API
+    }
+  })
+  .catch(err => {
+    hideSpinner();
+    showToast("❌ Failed to send action: " + err);
+  });
+}
+
 
 function renderPortsPanel(name) {
   const tab = document.getElementById('ports-tabcontent');
@@ -644,6 +669,61 @@ function submitMachineForm() {
   return false; // Prevent form submission from reloading page
 }
 
+function interceptServiceActions() {
+  document.querySelectorAll('form[action="/action"]').forEach(form => {
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      const formData = new FormData(form);
+      const host = formData.get('host');
+      const service = formData.get('service');
+      const action = formData.get('action');
+
+      showSpinner();
+
+      fetch('/action', {
+        method: 'POST',
+        body: formData
+      })
+      .then(res => res.json())
+      .then(json => {
+        hideSpinner();
+        showToast(json.message || "Action complete");
+
+        // 🧠 Only update one service row:
+        fetch('/api/unified')
+          .then(r => r.json())
+          .then(data => {
+            const node = data.data.find(n => n.node === host);
+            if (node) {
+              servicesData[host] = node;
+              updateServiceRow(host, service, node.services);
+            }
+          });
+      })
+      .catch(err => {
+        hideSpinner();
+        showToast("❌ Error: " + err);
+      });
+    }, { once: true });
+  });
+}
+
+function updateServiceRow(host, serviceName, updatedServices) {
+  const table = document.querySelector('#services-tabcontent table');
+  if (!table) return;
+  
+  const row = Array.from(table.rows).find(r => r.cells?.[0]?.textContent === serviceName);
+  const updated = updatedServices.find(s => s.name === serviceName);
+
+  if (!row || !updated) return;
+
+  row.className = updated.active === 'failed' ? 'failed' : '';
+  row.cells[1].textContent = updated.load;
+  row.cells[2].textContent = updated.active;
+  row.cells[2].className = `status-${updated.active}`;
+  row.cells[3].textContent = updated.sub;
+}
+
 function forceRefresh() {
   showToast("Refreshing cache...");
   fetch("/force-refresh", { method: "POST" })
@@ -654,6 +734,27 @@ function forceRefresh() {
     })
     .catch(err => showToast("⚠ Refresh failed: " + err));
 }
+
+document.addEventListener("DOMContentLoaded", () => {
+  const savedMainTab = localStorage.getItem("activeMainTab") || "services";
+  const savedSubtab = localStorage.getItem(`activeSubtab_${savedMainTab}`) || "LOCAL";
+
+  // Simulate a main tab click
+  const mainBtn = Array.from(document.querySelectorAll('.tablink')).find(btn =>
+    btn.textContent.trim().toLowerCase().includes(savedMainTab)
+  );
+  if (mainBtn) {
+    mainBtn.click();
+  }
+
+  // Delay setting subtab until data is fetched and subtabs rendered
+  setTimeout(() => {
+    if (servicesData[savedSubtab] || portsData[savedSubtab]) {
+      switchSubtab(savedMainTab, savedSubtab);
+    }
+  }, 500); // Adjust timing as needed
+});
+
 
 fetchData();
 </script>
