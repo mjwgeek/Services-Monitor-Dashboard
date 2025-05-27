@@ -5,10 +5,12 @@ from flask_socketio import SocketIO, emit
 import subprocess
 import paramiko
 import os
+import re
 import json
 import threading
 from pathlib import Path
 from time import time
+from flask import request, jsonify
 
 
 app = Flask(__name__)
@@ -50,31 +52,37 @@ def parse_systemctl_output(output):
             services.append({'name': name, 'load': load, 'active': active, 'sub': sub})
     return services
 
-def parse_lsof(proto, lines):
-    seen = set()
+def parse_lsof_fields(proto, lines):
     entries = []
-    for line in lines[1:]:
-        parts = line.split()
-        if len(parts) < 9:
-            continue
-        process = parts[0]
-        pid = parts[1]
-        user = parts[2]
-        port_part = parts[-2]
-        if ':' not in port_part:
-            continue
-        port = port_part.split(":")[-1]
-        key = (proto, port, process)
-        if key in seen:
-            continue
-        seen.add(key)
-        entries.append({
-            "protocol": proto,
-            "port": port,
-            "process": process,
-            "pid": pid,
-            "user": user
-        })
+    current_pid = None
+    current_process = None
+    current_user = None
+    seen = set()
+
+    for line in lines:
+        if line.startswith('p'):
+            current_pid = line[1:]
+        elif line.startswith('c'):
+            current_process = line[1:]
+        elif line.startswith('u'):
+            current_user = line[1:]
+        elif line.startswith('n'):
+            name_field = line[1:]
+            match = re.search(r':(\d+)', name_field)
+            if match:
+                port = match.group(1)
+                key = (proto, port, current_process, current_pid)
+                if key not in seen:
+                    seen.add(key)
+                    entries.append({
+                        'pid': current_pid,
+                        'process': current_process,
+                        'user': current_user,
+                        'port': port,
+                        'protocol': proto,
+                        'name': name_field
+                    })
+
     return entries
 
 def get_local_services():
@@ -84,9 +92,19 @@ def get_local_services():
     return parse_systemctl_output(out)
 
 def get_local_ports():
-    tcp = subprocess.run(["lsof", "-nP", "-iTCP", "-sTCP:LISTEN"], stdout=subprocess.PIPE, text=True).stdout.splitlines()
-    udp = subprocess.run(["lsof", "-nP", "-iUDP"], stdout=subprocess.PIPE, text=True).stdout.splitlines()
-    return parse_lsof("TCP", tcp) + parse_lsof("UDP", udp)
+    ports = []
+    for proto in ["TCP", "UDP"]:
+        try:
+            cmd = ["lsof", "-nP", f"-i{proto}", "-Fp", "-Fc", "-Fu", "-Fn"]
+            result = subprocess.run(cmd, stdout=subprocess.PIPE, text=True).stdout.splitlines()
+            ports += parse_lsof_fields(proto, result)
+        except Exception as e:
+            print(f"Error reading {proto} ports: {e}")
+            print("Collected ports:")
+    for p in ports:
+        print(p)
+    return ports
+
 
 def get_remote_services_and_ports(node):
     ssh = ssh_connect(node)
@@ -100,12 +118,14 @@ def get_remote_services_and_ports(node):
         seen = set()
         ports = []
         for proto in ["TCP", "UDP"]:
-            cmd = f"lsof -nP -i{proto}"
-            if proto == "TCP":
-                cmd += " -sTCP:LISTEN"
+            cmd = f"lsof -nP -i{proto} -Fp -Fc -Fu -Fn"
             stdin, stdout, stderr = ssh.exec_command(cmd)
             lines = stdout.read().decode().splitlines()
-            ports += parse_lsof(proto, lines)
+            for entry in parse_lsof_fields(proto, lines):
+                key = (entry['port'], entry['process'], proto, entry['pid'])
+                if key not in seen:
+                    seen.add(key)
+                    ports.append(entry)
         combined["ports"] = ports
     except Exception:
         combined["ports"] = []
@@ -121,6 +141,11 @@ def api_unified():
     try:
         local_services = get_local_services()
         local_ports = get_local_ports()
+                # ✅ Add debug logging here
+        print(f"[DEBUG] Local ports collected: {len(local_ports)}")
+        for p in local_ports:
+            print(p)
+        
     except Exception:
         local_services, local_ports = [], []
 
@@ -205,22 +230,25 @@ def action():
     service = request.form['service']
     act = request.form['action']
     nodes = load_nodes()
-    if host == 'LOCAL':
-        subprocess.run(['systemctl', act, service], check=False)
-    else:
-        node = next((n for n in nodes if n['name'] == host), None)
-        if not node:
-            flash(f"Host '{host}' not found.")
-            return redirect('/')
-        try:
+
+    try:
+        if host == 'LOCAL':
+            result = subprocess.run(['systemctl', act, service], check=False)
+            if result.returncode != 0:
+                return jsonify(success=False, message=f"Local systemctl {act} failed.")
+        else:
+            node = next((n for n in nodes if n['name'] == host), None)
+            if not node:
+                return jsonify(success=False, message=f"Host '{host}' not found.")
+
             ssh = ssh_connect(node)
             ssh.exec_command(f"systemctl {act} {service}")
             ssh.close()
-        except Exception as e:
-            flash(f"SSH error: {e}")
-            return redirect('/')
-    flash(f"{act.capitalize()} sent to {service} on {host}")
-    return redirect('/')
+
+        return jsonify(success=True, message=f"{act.capitalize()} sent to {service} on {host}")
+
+    except Exception as e:
+        return jsonify(success=False, message=f"Error: {e}")
 
 @app.route('/logs', methods=["POST"])
 def logs():
