@@ -183,9 +183,6 @@
   </div>
 </div>
 
-
-<!-- Removed search input box -->
-<!-- <input type="text" id="searchInput" placeholder="Filter services or ports..." oninput="applyFilters()"> -->
 <div id="loadingMessage">⏳ Loading data, please wait...</div>
 
 <!-- Tabs -->
@@ -234,11 +231,25 @@
 let servicesData = {};
 let portsData = {};
 let refreshTimer = null;
-let currentMainTab = 'services';
+
+let currentMainTab = localStorage.getItem("activeMainTab") || 'services';
+
 let currentSubtab = {
-  services: 'LOCAL',
-  ports: 'LOCAL'
+  services: localStorage.getItem("activeSubtab_services") || 'LOCAL',
+  ports: localStorage.getItem("activeSubtab_ports") || 'LOCAL'
 };
+
+
+try {
+  const savedServices = localStorage.getItem('servicesData');
+  const savedPorts = localStorage.getItem('portsData');
+  if (savedServices) servicesData = JSON.parse(savedServices);
+  if (savedPorts) portsData = JSON.parse(savedPorts);
+} catch (err) {
+  console.warn("Failed to restore cached data:", err);
+  servicesData = {};
+  portsData = {};
+}
 
 function openMainTab(evt, tab) {
   document.querySelectorAll('.tablink').forEach(btn => btn.classList.remove('active'));
@@ -273,6 +284,112 @@ function openMainTab(evt, tab) {
   }
 }
 
+function setupTableSorting(table) {
+  const headers = table.querySelectorAll("th[data-sort]");
+  headers.forEach(header => {
+    header.style.cursor = "pointer";
+    header.addEventListener("click", () => {
+      const sortKey = header.getAttribute("data-sort");
+      const rows = Array.from(table.querySelectorAll("tbody tr"));
+      const colIndex = Array.from(header.parentNode.children).indexOf(header);
+      const isNumeric = ["port", "pid"].includes(sortKey);
+      const ascending = header.classList.toggle("asc");
+
+      rows.sort((a, b) => {
+        const aText = a.children[colIndex].textContent.trim();
+        const bText = b.children[colIndex].textContent.trim();
+        const aVal = isNumeric ? parseInt(aText, 10) : aText.toLowerCase();
+        const bVal = isNumeric ? parseInt(bText, 10) : bText.toLowerCase();
+        return (aVal > bVal ? 1 : -1) * (ascending ? 1 : -1);
+      });
+
+      const tbody = table.querySelector("tbody");
+      tbody.innerHTML = "";
+      rows.forEach(row => tbody.appendChild(row));
+    });
+  });
+}
+
+
+function renderPortsPanel(name) {
+  const tab = document.getElementById('ports-tabcontent');
+  const node = portsData?.[name];
+
+  if (!node || !Array.isArray(node.ports)) return;
+
+  // Clear previous content
+  tab.innerHTML = '';
+
+  // Create wrapper
+  const wrapper = document.createElement('div');
+  wrapper.className = 'table-wrapper';
+
+  // Create table
+  const table = document.createElement('table');
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th data-sort="port">Port</th>
+        <th data-sort="protocol">Protocol</th>
+        <th data-sort="process">Process</th>
+        <th data-sort="pid">PID</th>
+        <th data-sort="user">User</th>
+        <th data-sort="name">Full Name</th>
+      </tr>
+    </thead>
+  `;
+
+  // Create tbody and fill rows
+  const tbody = document.createElement('tbody');
+  node.ports.forEach(port => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${port.port}</td>
+      <td>${port.protocol}</td>
+      <td>${port.process}</td>
+      <td>${port.pid}</td>
+      <td>${port.user}</td>
+      <td>${port.name}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  table.appendChild(tbody);
+  wrapper.appendChild(table);
+  tab.appendChild(wrapper);
+
+  // ✅ Sorting enabled
+  setupTableSorting(table);
+}
+
+function setupServiceSorting(table) {
+  const headers = table.querySelectorAll("th[data-sort]");
+  headers.forEach((header, index) => {
+    header.style.cursor = "pointer";
+    header.addEventListener("click", () => {
+      const rows = Array.from(table.querySelectorAll("tbody tr"));
+
+      // Toggle ascending/descending on this header
+      const ascending = !header.classList.contains("asc");
+      headers.forEach(h => h.classList.remove("asc"));
+      if (ascending) header.classList.add("asc");
+
+      rows.sort((a, b) => {
+        const aText = a.children[index].textContent.trim().toLowerCase();
+        const bText = b.children[index].textContent.trim().toLowerCase();
+        return ascending
+          ? aText.localeCompare(bText)
+          : bText.localeCompare(aText);
+      });
+
+      const tbody = table.querySelector("tbody");
+      tbody.innerHTML = "";
+      rows.forEach(row => tbody.appendChild(row));
+    });
+  });
+}
+
+
 function switchSubtab(type, nodeName) {
   currentSubtab[type] = nodeName;
   localStorage.setItem(`activeSubtab_${type}`, nodeName);
@@ -286,7 +403,7 @@ function switchSubtab(type, nodeName) {
   if (type === 'services') {
     renderServicesPanel(nodeName);
   } else if (type === 'ports') {
-    renderPortsPanel(nodeName);
+    renderPortsPanel(nodeName);  
   }
 
   // Delay filter application until table rows are fully added
@@ -308,21 +425,32 @@ function renderSubtabs(type, nodeList) {
 
 function renderServicesPanel(name) {
   const tab = document.getElementById('services-tabcontent');
-  const node = servicesData[name];
-  if (!node) return;
+  const node = servicesData?.[name];
+  if (!node || !Array.isArray(node.services)) return;
+
+  tab.innerHTML = '';
+
   const wrapper = document.createElement('div');
   wrapper.className = 'table-wrapper';
 
   const table = document.createElement('table');
   table.innerHTML = `
     <thead>
-      <tr><th>Name</th><th>Load</th><th>Active</th><th>Sub</th><th>Actions</th></tr>
-    </thead>`;
+      <tr>
+        <th data-sort="name">Name</th>
+        <th data-sort="load">Load</th>
+        <th data-sort="active">Active</th>
+        <th data-sort="sub">Sub</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+  `;
+
   const tbody = document.createElement('tbody');
 
   node.services.forEach(service => {
     const tr = document.createElement('tr');
-    if (service.active === 'failed') tr.classList.add('failed');
+    tr.className = service.active === "failed" ? "failed" : "";
 
     tr.innerHTML = `
       <td>${service.name}</td>
@@ -330,11 +458,12 @@ function renderServicesPanel(name) {
       <td class="status-${service.active}">${service.active}</td>
       <td>${service.sub}</td>
       <td>
-        <button class="button" onclick="handleServiceAction(event, '${name}', '${service.name}', 'restart')">Restart</button>
-        <button class="button" onclick="handleServiceAction(event, '${name}', '${service.name}', 'stop')">Stop</button>
-        <button class="button" onclick="handleServiceAction(event, '${name}', '${service.name}', 'start')">Start</button>
+        <button class="button" onclick="controlService('${name}', '${service.name}', 'start')">Start</button>
+        <button class="button" onclick="controlService('${name}', '${service.name}', 'stop')">Stop</button>
+        <button class="button" onclick="controlService('${name}', '${service.name}', 'restart')">Restart</button>
         <button class="button" onclick="viewLogs('${name}', '${service.name}')">Logs</button>
-      </td>`;
+      </td>
+    `;
 
     tbody.appendChild(tr);
   });
@@ -342,60 +471,9 @@ function renderServicesPanel(name) {
   table.appendChild(tbody);
   wrapper.appendChild(table);
   tab.appendChild(wrapper);
-  interceptServiceActions();
-}
 
-function handleServiceAction(event, host, service, action) {
-  event.preventDefault();
-  showSpinner();
-
-  fetch('/action', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ host, service, action })
-  })
-  .then(res => res.json())
-  .then(json => {
-    hideSpinner();
-    showToast(json.message || "Action complete");
-    if (json.success) {
-      manualRefresh(); // optional: reload data from API
-    }
-  })
-  .catch(err => {
-    hideSpinner();
-    showToast("❌ Failed to send action: " + err);
-  });
-}
-
-
-function renderPortsPanel(name) {
-  const tab = document.getElementById('ports-tabcontent');
-  const node = portsData[name];
-  if (!node) return;
-  const wrapper = document.createElement('div');
-  wrapper.className = 'table-wrapper';
-
-  const table = document.createElement('table');
-  table.innerHTML = `
-    <thead>
-      <tr><th>Protocol</th><th>Port</th><th>Process</th><th>PID</th></tr>
-    </thead>`;
-  const tbody = document.createElement('tbody');
-
-  node.ports.forEach(port => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${port.protocol}</td>
-      <td>${port.port}</td>
-      <td>${port.process}</td>
-      <td>${port.pid}</td>`;
-    tbody.appendChild(tr);
-  });
-
-  table.appendChild(tbody);
-  wrapper.appendChild(table);
-  tab.appendChild(wrapper);
+  // ⚙️ Enable sorting for services
+  setupServiceSorting(table);
 }
 
 function fetchData() {
@@ -407,6 +485,9 @@ function fetchData() {
 
       servicesData = Object.fromEntries(data.data.map(n => [n.node, n]));
       portsData = Object.fromEntries(data.data.map(n => [n.node, n]));
+
+      localStorage.setItem('servicesData', JSON.stringify(servicesData));
+      localStorage.setItem('portsData', JSON.stringify(portsData));
 
       const nodeNames = Object.keys(servicesData);
       renderSubtabs('services', nodeNames);
