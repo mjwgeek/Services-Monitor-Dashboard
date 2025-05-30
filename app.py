@@ -226,9 +226,14 @@ def force_refresh():
 
 @app.route('/action', methods=["POST"])
 def action():
-    host = request.form['host']
-    service = request.form['service']
-    act = request.form['action']
+    if request.is_json:
+        data = request.get_json()
+    else:
+        data = request.form
+
+    host = data.get('host')
+    service = data.get('service')
+    act = data.get('action')
     nodes = load_nodes()
 
     try:
@@ -249,6 +254,32 @@ def action():
 
     except Exception as e:
         return jsonify(success=False, message=f"Error: {e}")
+
+@app.route('/api/node/<hostname>')
+def get_node_status(hostname):
+    if hostname == "LOCAL":
+        try:
+            local_services = get_local_services()
+            return jsonify({
+                "node": "LOCAL",
+                "services": local_services
+            })
+        except Exception as e:
+            return jsonify({"node": "LOCAL", "services": [], "error": str(e)}), 500
+
+    node = next((n for n in load_nodes() if n["name"] == hostname), None)
+    if not node:
+        return jsonify({"error": "Node not found"}), 404
+
+    try:
+        result = get_remote_services_and_ports(node)
+        return jsonify({
+            "node": hostname,
+            "services": result["services"]
+        })
+    except Exception as e:
+        return jsonify({"node": hostname, "services": [], "error": str(e)}), 500
+
 
 @app.route('/logs', methods=["POST"])
 def logs():
