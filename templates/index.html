@@ -161,7 +161,8 @@
   <h1>Services Monitor Dashboard</h1>
   <div class="header-controls">
     <span id="lastUpdated">Last updated: --:--:--</span>
-    <button onclick="manualRefresh()">Refresh</button>
+	<button onclick="refreshCurrentTab()">Refresh Tab</button>
+    <button onclick="manualRefresh()">Refresh All</button>
     <select id="refreshInterval">
       <option value="60000" selected>60s</option>
       <option value="120000">120s</option>
@@ -362,6 +363,42 @@ function renderPortsPanel(name) {
   setupTableSorting(table);
 }
 
+function controlService(host, service, action) {
+  showSpinner();
+
+  fetch("/action", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      host: host,
+      service: service,
+      action: action
+    })
+  })
+  .then(res => res.json())
+  .then(json => {
+    hideSpinner();
+    showToast(json.message || "Action complete");
+
+    // Update just this one service row
+    fetch("/api/unified")
+      .then(r => r.json())
+      .then(data => {
+        const node = data.data.find(n => n.node === host);
+        if (node) {
+          servicesData[host] = node;
+          updateServiceRow(host, service, node.services);
+        }
+      });
+  })
+  .catch(err => {
+    hideSpinner();
+    showToast("❌ Error: " + err);
+  });
+}
+
 function setupServiceSorting(table) {
   const headers = table.querySelectorAll("th[data-sort]");
   headers.forEach((header, index) => {
@@ -528,6 +565,40 @@ function manualRefresh() {
     .catch(err => {
       showToast("⚠ Manual refresh failed: " + err);
       hideSpinner();
+    });
+}
+
+function refreshCurrentTab() {
+  const type = currentMainTab;
+  const name = currentSubtab[type];
+
+  if (!type || !name) return;
+
+  showSpinner();
+
+  // Fetch only this node's latest data
+  fetch(`/api/node/${name}`)
+    .then(res => res.json())
+    .then(data => {
+      hideSpinner();
+
+      if (type === "services") {
+        if (data && data.services) {
+          servicesData[name].services = data.services;
+          switchSubtab("services", name);  // re-render just this node
+          showToast("✅ Services updated");
+        }
+      } else if (type === "ports") {
+        if (data && data.ports) {
+          portsData[name].ports = data.ports;
+          switchSubtab("ports", name);  // re-render just this node
+          showToast("✅ Ports updated");
+        }
+      }
+    })
+    .catch(err => {
+      hideSpinner();
+      showToast(`❌ Failed to refresh tab: ${err}`);
     });
 }
 
@@ -770,14 +841,15 @@ function interceptServiceActions() {
         hideSpinner();
         showToast(json.message || "Action complete");
 
-        // 🧠 Only update one service row:
-        fetch('/api/unified')
+        // 🧠 Fetch just the affected node's service list
+        fetch(`/api/node/${host}`)
           .then(r => r.json())
           .then(data => {
-            const node = data.data.find(n => n.node === host);
-            if (node) {
-              servicesData[host] = node;
-              updateServiceRow(host, service, node.services);
+            if (data && data.services) {
+              servicesData[host].services = data.services;
+              updateServiceRow(host, service, data.services);
+            } else {
+              showToast(`⚠ Could not update service status for ${host}`);
             }
           });
       })
@@ -792,11 +864,21 @@ function interceptServiceActions() {
 function updateServiceRow(host, serviceName, updatedServices) {
   const table = document.querySelector('#services-tabcontent table');
   if (!table) return;
-  
-  const row = Array.from(table.rows).find(r => r.cells?.[0]?.textContent === serviceName);
-  const updated = updatedServices.find(s => s.name === serviceName);
 
-  if (!row || !updated) return;
+  const row = Array.from(table.querySelectorAll("tbody tr")).find(r => {
+    const cellText = r.cells?.[0]?.textContent?.trim().toLowerCase();
+    return cellText === serviceName.trim().toLowerCase();
+  });
+
+  const updated = updatedServices.find(s =>
+    s.name.trim().toLowerCase() === serviceName.trim().toLowerCase()
+  );
+
+  if (!row || !updated) {
+    console.warn("Fallback: Refreshing full node view for", host);
+    switchSubtab('services', host);
+    return;
+  }
 
   row.className = updated.active === 'failed' ? 'failed' : '';
   row.cells[1].textContent = updated.load;
@@ -804,6 +886,7 @@ function updateServiceRow(host, serviceName, updatedServices) {
   row.cells[2].className = `status-${updated.active}`;
   row.cells[3].textContent = updated.sub;
 }
+
 
 function forceRefresh() {
   showToast("Refreshing cache...");
