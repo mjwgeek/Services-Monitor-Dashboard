@@ -260,12 +260,14 @@ def get_node_status(hostname):
     if hostname == "LOCAL":
         try:
             local_services = get_local_services()
+            local_ports = get_local_ports()
             return jsonify({
                 "node": "LOCAL",
-                "services": local_services
+                "services": local_services,
+                "ports": local_ports
             })
         except Exception as e:
-            return jsonify({"node": "LOCAL", "services": [], "error": str(e)}), 500
+            return jsonify({"node": "LOCAL", "services": [], "ports": [], "error": str(e)}), 500
 
     node = next((n for n in load_nodes() if n["name"] == hostname), None)
     if not node:
@@ -275,10 +277,16 @@ def get_node_status(hostname):
         result = get_remote_services_and_ports(node)
         return jsonify({
             "node": hostname,
-            "services": result["services"]
+            "services": result["services"],
+            "ports": result["ports"]
         })
     except Exception as e:
-        return jsonify({"node": hostname, "services": [], "error": str(e)}), 500
+        return jsonify({
+            "node": hostname,
+            "services": [],
+            "ports": [],
+            "error": str(e)
+        }), 500
 
 
 @app.route('/logs', methods=["POST"])
