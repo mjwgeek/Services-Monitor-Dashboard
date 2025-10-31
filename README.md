@@ -111,6 +111,6 @@ Here’s what the Services Monitor Dashboard looks like:
 
 
 ## License
-Source-available license © 2025 Michael Webb (WG5EEK).  
+Source-available license © 2025 Michael Webb
 Use is permitted, but modification, redistribution, or re-release is forbidden.  
 See [LICENSE](LICENSE) for full terms.
