@@ -1,22 +1,48 @@
-“No Modification / No Redistribution” License
-
+SPDX-License-Identifier: LicenseRef-NoModify-mjw_geek
 Copyright (c) 2025 Michael Webb
 All rights reserved.
 
-Permission is hereby granted to any person obtaining a copy of this software and associated documentation files (the “Software”) to use the Software for personal or internal purposes only.
+1. Grant of Permission
 
-You may NOT:
+You are granted a limited, revocable, non-exclusive, non-transferable license to use this software and its accompanying documentation (“the Software”) for personal, educational, or internal purposes only, provided that you comply with all terms and conditions of this License.
 
-Copy, distribute, publish, or make the Software publicly available, in whole or in part;
+2. Restrictions
 
-Modify, fork, translate, reverse engineer, or create derivative works based on the Software;
+Except as expressly permitted under Section 1, you may not, in whole or in part:
 
-Sell, sublicense, or otherwise commercially exploit the Software;
+Modify, adapt, translate, or create derivative works based on the Software;
 
-Repackage or re-release the Software, whether for free or for a fee;
+Copy, distribute, sell, sublicense, lease, loan, rent, or otherwise make the Software available to any third party;
 
-Remove or alter any copyright, author, or attribution notices.
+Publish, upload, or redistribute the Software (including modified or compiled versions) on any public or private repository, website, server, or distribution platform;
 
-Any use of the Software in violation of these terms immediately terminates the permission granted herein.
+Remove, alter, or obscure any copyright, author attribution, or license notices contained in the Software;
 
-The Software is provided “AS IS”, without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose and noninfringement. In no event shall the author be liable for any claim, damages or other liability, whether in an action of contract, tort or otherwise, arising from, out of or in connection with the Software or the use or other dealings in the Software.
+Use the Software for any commercial purpose or in any revenue-generating activity;
+
+Combine or integrate the Software, in whole or in part, into any other project, product, or work intended for distribution.
+
+Any use of the Software outside the scope of this License is strictly prohibited and will automatically terminate your rights under this License.
+
+3. Ownership
+
+The Software is protected by copyright and other intellectual property laws.
+All rights, title, and interest in and to the Software remain with the copyright holder, Michael Webb (WG5EEK).
+
+4. Termination
+
+This License terminates automatically without notice if you breach any of its terms.
+Upon termination, you must cease all use of the Software and destroy all copies in your possession.
+
+5. No Warranty
+
+THE SOFTWARE IS PROVIDED “AS IS” WITHOUT WARRANTY OF ANY KIND, WHETHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.
+IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+6. Governing Law
+
+This License shall be governed by and construed in accordance with the laws of the United States and the State of Arkansas, without regard to conflict of law principles.
+
+7. Acceptance
+
+By downloading, installing, copying, or otherwise using the Software, you acknowledge that you have read, understood, and agreed to be bound by the terms of this License.
