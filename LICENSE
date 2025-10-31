@@ -2,47 +2,95 @@ SPDX-License-Identifier: LicenseRef-NoModify-mjwgeek
 Copyright (c) 2025 Michael Webb
 All rights reserved.
 
-1. Grant of Permission
+1. Grant of Limited License
 
-You are granted a limited, revocable, non-exclusive, non-transferable license to use this software and its accompanying documentation (“the Software”) for personal, educational, or internal purposes only, provided that you comply with all terms and conditions of this License.
+Permission is hereby granted to any individual or organization obtaining a copy of this software and associated documentation files (the “Software”) to use the Software solely for personal, non-commercial, and internal purposes, provided that all terms and conditions of this License are followed in full.
+
+This License does not convey ownership, and no other rights or licenses are granted, whether express, implied, or by estoppel.
 
 2. Restrictions
 
-Except as expressly permitted under Section 1, you may not, in whole or in part:
+Except as explicitly permitted above, you are strictly prohibited from engaging in any of the following actions:
 
-Modify, adapt, translate, or create derivative works based on the Software;
+Modification or Derivative Works — You may not modify, adapt, translate, decompile, disassemble, reverse engineer, or create derivative works or variations of the Software in any form.
 
-Copy, distribute, sell, sublicense, lease, loan, rent, or otherwise make the Software available to any third party;
+Redistribution or Re-publication — You may not copy, redistribute, sublicense, publish, host, mirror, or otherwise make the Software or its components available to any third party, including via public or private repositories, hosting services, or websites.
 
-Publish, upload, or redistribute the Software (including modified or compiled versions) on any public or private repository, website, server, or distribution platform;
+Repackaging or Re-branding — You may not repackage, rename, re-release, or incorporate the Software, in whole or in part, into any other project or distribution.
 
-Remove, alter, or obscure any copyright, author attribution, or license notices contained in the Software;
+Commercial Use — You may not use the Software, or any portion thereof, for commercial, business, or revenue-generating purposes of any kind.
 
-Use the Software for any commercial purpose or in any revenue-generating activity;
+AI or Data Usage — You may not use the Software, its source code, or any derivative information for training, fine-tuning, or development of artificial intelligence or machine-learning systems.
 
-Combine or integrate the Software, in whole or in part, into any other project, product, or work intended for distribution.
+Attribution Removal — You may not remove, obscure, or alter any copyright notice, author attribution, license statement, or embedded metadata.
 
-Any use of the Software outside the scope of this License is strictly prohibited and will automatically terminate your rights under this License.
+Circumvention — You may not bypass or disable any usage controls, watermarks, or technical measures contained in or related to the Software.
 
-3. Ownership
+Violation of any of these restrictions immediately and automatically terminates all rights granted under this License.
 
-The Software is protected by copyright and other intellectual property laws.
-All rights, title, and interest in and to the Software remain with the copyright holder, Michael Webb (WG5EEK).
+3. Ownership and Intellectual Property
 
-4. Termination
+The Software is protected by copyright and intellectual-property laws.
+All rights, title, and interest remain exclusively with Michael Webb.
+You acknowledge that you acquire no ownership or other intellectual-property rights by downloading, installing, or using the Software.
 
-This License terminates automatically without notice if you breach any of its terms.
-Upon termination, you must cease all use of the Software and destroy all copies in your possession.
+4. Attribution Requirement
 
-5. No Warranty
+If you publicly reference, display screenshots of, or discuss the Software or its output, you must provide clear and visible attribution in the following form:
 
-THE SOFTWARE IS PROVIDED “AS IS” WITHOUT WARRANTY OF ANY KIND, WHETHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.
-IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+“Software developed by Michael Webb (WG5EEK)”
+© 2025 Michael Webb. Used with permission.
 
-6. Governing Law
+This attribution must remain intact in all reproductions and citations.
 
-This License shall be governed by and construed in accordance with the laws of the United States and the State of Arkansas, without regard to conflict of law principles.
+5. Termination
 
-7. Acceptance
+This License terminates automatically, without notice, if you fail to comply with any of its provisions.
+Upon termination, you must immediately discontinue all use of the Software, permanently delete or destroy all copies, and cease any further distribution or reference.
 
-By downloading, installing, copying, or otherwise using the Software, you acknowledge that you have read, understood, and agreed to be bound by the terms of this License.
+The copyright holder reserves the right to pursue civil and criminal remedies, including statutory damages and injunctive relief, under applicable law.
+
+6. Enforcement and DMCA Protection
+
+Unauthorized reproduction, redistribution, modification, or derivative use of the Software constitutes copyright infringement under the U.S. Copyright Act (17 U.S.C. § 101 et seq.) and applicable international treaties.
+
+The copyright holder may enforce this License through:
+
+DMCA takedown notices under 17 U.S.C. § 512;
+
+Cease-and-desist demands; and
+
+Civil or criminal legal proceedings in appropriate jurisdictions.
+
+GitHub and all other hosting providers are authorized to remove or disable access to infringing material upon notice from the copyright holder.
+
+7. Disclaimer of Warranty
+
+THE SOFTWARE IS PROVIDED “AS IS” WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, AND NON-INFRINGEMENT.
+THE ENTIRE RISK ARISING OUT OF THE USE OR PERFORMANCE OF THE SOFTWARE REMAINS WITH YOU.
+
+8. Limitation of Liability
+
+IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, LOSS OF PROFITS, DATA, GOODWILL, OR BUSINESS INTERRUPTION) ARISING OUT OF THE USE OR INABILITY TO USE THE SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+
+9. Indemnification
+
+You agree to indemnify, defend, and hold harmless the copyright holder from and against any and all claims, damages, liabilities, costs, and expenses (including reasonable attorney’s fees) arising from or related to your use of the Software in violation of this License.
+
+10. Governing Law and Jurisdiction
+
+This License shall be governed by and construed in accordance with the laws of the United States and the State of Arkansas, without regard to its conflict-of-laws provisions.
+You consent to the exclusive jurisdiction of the state and federal courts located in Washington County, Arkansas for all disputes arising from or relating to this License or the Software.
+
+11. Severability
+
+If any provision of this License is found invalid or unenforceable, the remaining provisions shall remain in full force and effect.
+
+12. Entire Agreement
+
+This License constitutes the entire agreement between you and the copyright holder regarding the Software.
+No modification or waiver of any provision shall be valid unless in writing and signed by the copyright holder.
+
+13. Acceptance
+
+By downloading, cloning, installing, or otherwise using the Software, you acknowledge that you have read, understood, and agreed to be legally bound by the terms of this License in their entirety.
