@@ -109,3 +109,8 @@ Here’s what the Services Monitor Dashboard looks like:
 ![Dashboard Preview](assets/logs.jpg)
 ![Dashboard Preview](assets/ports.jpg)
 
+
+## License
+Source-available license © 2025 Michael Webb (WG5EEK).  
+Use is permitted, but modification, redistribution, or re-release is forbidden.  
+See [LICENSE](LICENSE) for full terms.
